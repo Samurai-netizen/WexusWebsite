@@ -1,0 +1,413 @@
+/* ============================================================
+   ГЛОБАЛЬНЫЕ СТИЛИ И ДИЗАЙН-СИСТЕМА
+   Здесь живут только общие вещи: токены, темы экранов, каркас ленты
+   и классы дизайн-системы (кнопки, типографика). Всё, что относится
+   к одной секции, пишется в её компоненте (Tailwind-классы в шаблоне,
+   сложное — в <style scoped>). Правила — в CLAUDE.md.
+   ============================================================ */
+@import 'tailwindcss';
+
+/* ------------------------------------------------------------
+   1. ТОКЕНЫ → Tailwind-утилиты
+   Цвет:     bg-deep, text-quartz, border-cyan …
+   Отступы:  p-s3, gap-s4, mt-s5 … (шкала брендборда 8/12/20/32/56/96 px)
+   Радиус:   rounded-ui (единый радиус 12px)
+   Шрифты:   font-sans (Plex Sans), font-display (Space Grotesk), font-mono (Plex Mono)
+   ------------------------------------------------------------ */
+@theme {
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+
+  /* палитра брендборда. Тёмные фоны подняты: ниже L*10 экран в освещённой
+     комнате перестаёт их различать и страница выглядит тускло-серой. */
+  --color-ink: #222847; /* Nexus Ink — приподнятая тёмная поверхность: карточки, модальное окно */
+  --color-graphite: #12162b; /* Graphite — текст и линии на светлом */
+  --color-cyan: #00c2b8; /* Signal Cyan — индикаторы и одна кнопка */
+  --color-cyan-hover: #00d9cd; /* наведение на cyan-кнопку */
+  --color-cyan-deep: #009189; /* тот же тон, приглушён для светлых поверхностей */
+  --color-quartz: #eae8df; /* Quartz — светлый фон / текст на тёмном */
+  --color-paper: #f2f1ec; /* Paper — фон светлых экранов */
+  --color-deep: #161a31; /* Deep Field — самый тёмный фон */
+  --color-danger: #ff8a7a; /* ошибки полей формы */
+
+  /* шкала отступов: других значений в проекте нет */
+  --spacing-s1: 8px;
+  --spacing-s2: 12px;
+  --spacing-s3: 20px;
+  --spacing-s4: 32px;
+  --spacing-s5: 56px;
+  --spacing-s6: 96px;
+
+  /* единый радиус: кнопки, панели и корпус устройства говорят на одном языке */
+  --radius-ui: 12px;
+
+  /* Брейкпоинты повторяют исходный лендинг (он был desktop-first):
+       max-sm:  ширина ≤ 560   max-md: ≤ 700   max-lg: ≤ 900   max-xl: ≤ 1180
+       lg:      ширина ≥ 901   xl:     ≥ 1181 */
+  --breakpoint-*: initial;
+  --breakpoint-sm: 561px;
+  --breakpoint-md: 701px;
+  --breakpoint-lg: 901px;
+  --breakpoint-xl: 1181px;
+}
+
+/* Цвета, которые зависят от темы экрана (см. .theme-dark / .theme-light ниже).
+   Утилиты: text-fg, text-fg-dim, border-hair, bg-panel, text-accent, bg-board, bg-pill */
+@theme inline {
+  --color-fg: var(--fg);
+  --color-fg-dim: var(--fg-dim);
+  --color-hair: var(--hair);
+  --color-panel: var(--panel);
+  --color-accent: var(--accent);
+  --color-board: var(--board);
+  --color-pill: var(--pill-bg);
+}
+
+/* Низкие окна ноутбуков (только десктопная раскладка, ширина ≥ 901):
+     short:   высота ≤ 900 px
+     shorter: высота ≤ 820 px */
+@custom-variant short (@media (max-height: 900px) and (min-width: 901px));
+@custom-variant shorter (@media (max-height: 820px) and (min-width: 901px));
+
+/* Нестандартные CSS-переменные, общие для всей страницы */
+:root {
+  --quartz-rgb: 234, 232, 223;
+  --deep-rgb: 22, 26, 49;
+
+  /* такт сигнала первого экрана: период волны, кривая, длительность появления
+     и три уровня — внутренний, средний, внешний. Отсюда его берут и индикатор,
+     и значок на корпусе, и дуги за ним, поэтому они не расходятся. */
+  --sig-t: 2.9s;
+  --sig-e: cubic-bezier(0.4, 0, 0.3, 1);
+  --sig-in: 1.05s;
+  --sig-1: 2.6s;
+  --sig-2: 2.85s;
+  --sig-3: 3.1s;
+
+  /* поля экранов и ширина контента */
+  --padX: clamp(20px, 5vw, 80px);
+  --padY: clamp(28px, 4.5vh, 60px);
+  --maxw: 1300px;
+}
+
+/* ------------------------------------------------------------
+   2. БАЗА
+   ------------------------------------------------------------ */
+@layer base {
+  html {
+    color-scheme: dark light;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    font-family: var(--font-sans);
+    font-size: 16px;
+    /* как в исходном лендинге: браузерный normal, а не 1.5 из preflight Tailwind */
+    line-height: normal;
+    color: var(--color-graphite);
+    background: var(--color-paper);
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  summary:focus-visible {
+    outline: 2px solid var(--color-cyan);
+    outline-offset: 3px;
+  }
+  /* preflight Tailwind делает кнопки прозрачными — курсор возвращаем */
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* ------------------------------------------------------------
+   3. ДИЗАЙН-СИСТЕМА
+   Слой components: любой Tailwind-класс в шаблоне их перекрывает.
+   ------------------------------------------------------------ */
+@layer components {
+  /* ---- Темы. Светлая и тёмная палитры не смешиваются внутри блока:
+     переменные --fg / --fg-dim / --hair / --panel переключаются целиком. ---- */
+  .theme-dark {
+    --fg: var(--color-quartz);
+    --fg-rgb: var(--quartz-rgb); /* тот же цвет для rgba() внутри графиков */
+    --fg-dim: rgba(var(--quartz-rgb), 0.7);
+    --hair: rgba(var(--quartz-rgb), 0.2);
+    --panel: rgba(var(--quartz-rgb), 0.05);
+    --accent: var(--color-cyan);
+    --accent-rgb: 0, 194, 184;
+    --board: var(--color-ink); /* панель прибора приподнята над фоном */
+    --pill-bg: #103b38; /* на линии акцента, а не между навигатором и бирюзой */
+    --wash-lo: 0.03;
+    --wash-hi: 0.22;
+    --sub-a: 0.8;
+    color: var(--fg);
+  }
+  .theme-light {
+    --fg: var(--color-graphite);
+    --fg-rgb: 18, 22, 43;
+    --fg-dim: rgba(18, 22, 43, 0.76);
+    --hair: rgba(18, 22, 43, 0.15);
+    --panel: rgba(18, 22, 43, 0.035);
+    --accent: var(--color-cyan-deep); /* на светлом бирюза глубже: 3.15:1 вместо 1.81:1 */
+    --accent-rgb: 0, 145, 137;
+    --board: #fcfbf7; /* та же панель, но приподнятая над фоном */
+    --pill-bg: #ddeeec;
+    --wash-lo: 0.07;
+    --wash-hi: 0.3;
+    --sub-a: 0.62;
+    color: var(--fg);
+  }
+
+  /* Приподнятая тёмная карточка поверх любого экрана (окно заявки, подсказка
+     графика): всегда тёмная, независимо от темы экрана под ней. Рамки чуть тише,
+     чем на тёмных экранах, — на приподнятой поверхности 0.2 выглядит грубо.
+     Фон и цвет текста карточка задаёт сама.
+       <div class="theme-raised bg-graphite/96 text-fg">…</div> */
+  .theme-raised {
+    --fg: var(--color-quartz);
+    --fg-rgb: var(--quartz-rgb);
+    --fg-dim: rgba(var(--quartz-rgb), 0.7);
+    --hair: rgba(var(--quartz-rgb), 0.16);
+    --panel: rgba(var(--quartz-rgb), 0.05);
+  }
+
+  /* ---- Лента экранов. Нативный CSS scroll-snap вместо JS-перехвата колеса:
+     страница остаётся обычной прокруткой, snap только подтягивает экран к краю.
+     proximity, а не mandatory — чтобы длинный текст на маленьком экране
+     не «дрался» с читателем. ---- */
+  .deck {
+    height: 100vh; /* запасной вариант для старых движков */
+    height: 100svh; /* svh: не обрезается адресной строкой на iOS */
+    overflow-y: auto;
+    scroll-snap-type: y proximity;
+    scroll-behavior: smooth;
+  }
+  .screen {
+    position: relative;
+    display: flex;
+    min-height: 100%;
+    flex-direction: column;
+    justify-content: center;
+    overflow: hidden;
+    padding: var(--padY) var(--padX);
+    scroll-snap-align: start;
+  }
+  .screen-deep {
+    background: var(--color-deep);
+  }
+  .screen-paper {
+    background: var(--color-paper);
+  }
+  .screen-quartz {
+    background: var(--color-quartz);
+  }
+  /* Nodal grid — фирменный графический язык как фон, не как визуал */
+  .screen-deep::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(
+      circle at 1.1px 1.1px,
+      rgba(var(--quartz-rgb), 0.1) 1.1px,
+      transparent 0
+    );
+    background-size: 44px 44px;
+    pointer-events: none;
+  }
+  .wrap {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: var(--maxw);
+    margin: 0 auto;
+  }
+
+  /* ---- Типографика ---- */
+  .title-display {
+    font-size: clamp(34px, 5.4vw, 68px);
+    line-height: 1.03;
+  }
+  .title-screen {
+    max-width: 22ch;
+    font-size: clamp(25px, 3.2vw, 42px);
+    line-height: 1.09;
+  }
+  .lede {
+    max-width: 54ch;
+    font-size: clamp(15.5px, 1.25vw, 18px);
+    line-height: 1.55;
+    color: var(--fg-dim);
+  }
+  .note {
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--fg-dim);
+  }
+  /* IBM Plex Mono — только настоящие данные: модель, габариты, спецификации */
+  .mono {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--fg-dim);
+  }
+
+  /* ---- Кнопки. Одно действие на странице — одна cyan-кнопка. ---- */
+  .btn {
+    display: inline-flex;
+    min-height: 48px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 var(--spacing-s4);
+    border: none;
+    border-radius: var(--radius-ui);
+    background: var(--color-cyan);
+    color: var(--color-deep);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      background-color 0.2s ease,
+      transform 0.14s ease,
+      box-shadow 0.3s ease;
+  }
+  .btn:hover {
+    background: var(--color-cyan-hover);
+    box-shadow: 0 0 0 6px rgba(0, 194, 184, 0.16);
+  }
+  .btn:active {
+    transform: scale(0.985);
+    box-shadow: 0 0 0 2px rgba(0, 194, 184, 0.22);
+  }
+  .btn:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+    box-shadow: none;
+    background: var(--color-cyan);
+  }
+  .btn[aria-disabled='true'] {
+    opacity: 0.7;
+    cursor: progress;
+    box-shadow: none;
+    background: var(--color-cyan);
+    transform: none;
+  }
+  .btn-sm {
+    min-height: 38px;
+    padding: 0 var(--spacing-s3);
+    font-size: 14px;
+  }
+  .link-quiet {
+    display: inline-block;
+    width: fit-content;
+    padding: 4px 0 6px;
+    border: none;
+    border-bottom: 1px solid var(--hair);
+    background: none;
+    font-family: var(--font-sans);
+    font-size: 15px;
+    color: var(--fg);
+    text-decoration: none;
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+  }
+  .link-quiet:hover {
+    border-bottom-color: var(--color-cyan);
+  }
+
+  /* Ссылка для клавиатуры: пропустить оформление первого экрана */
+  .skip {
+    position: absolute;
+    top: 0;
+    left: -9999px;
+    z-index: 60;
+    padding: var(--spacing-s2) var(--spacing-s3);
+    border-radius: var(--radius-ui);
+    background: var(--color-cyan);
+    color: var(--color-deep);
+  }
+  .skip:focus {
+    top: var(--spacing-s3);
+    left: var(--spacing-s3);
+  }
+}
+
+/* ------------------------------------------------------------
+   4. АДАПТИВНОСТЬ ОБЩЕГО КАРКАСА
+   (правила конкретных секций живут в их компонентах)
+   ------------------------------------------------------------ */
+@layer components {
+  @media (min-width: 901px) {
+    /* сверху резервируем полосу под липкую шапку */
+    .screen {
+      padding-top: calc(var(--padY) + 46px);
+    }
+  }
+  @media (min-width: 1181px) {
+    /* справа резервируем полосу под индикатор разделов */
+    .screen {
+      padding-right: calc(var(--padX) + 46px);
+    }
+  }
+  /* та же граница — MOBILE_QUERY в src/composables/useSectionTracking.ts: менять вместе */
+  @media (max-width: 900px) {
+    /* На узком экране snap выключается: управляемая прокрутка
+       на тач-устройствах раздражает сильнее, чем помогает. */
+    .deck {
+      height: auto;
+      overflow: visible;
+      scroll-snap-type: none;
+    }
+    .screen {
+      min-height: 100vh;
+      min-height: 100svh;
+      padding: var(--spacing-s5) var(--padX) calc(var(--spacing-s5) + 56px);
+    }
+  }
+  @media (max-width: 560px) {
+    .btn {
+      width: 100%;
+    }
+  }
+  @media (max-height: 820px) and (min-width: 901px) {
+    .title-display {
+      font-size: clamp(30px, 3.8vw, 48px);
+    }
+    .title-screen {
+      font-size: clamp(24px, 2.6vw, 34px);
+    }
+    .screen {
+      padding-top: calc(var(--padY) + 34px);
+    }
+  }
+  /* Если высоты всё равно не хватает — снап выключается, чтобы ничего не срезалось */
+  @media (max-height: 780px) {
+    .deck {
+      scroll-snap-type: none;
+    }
+  }
+  /* Пользователь отключил анимацию — отключаем и snap, и плавный скролл */
+  @media (prefers-reduced-motion: reduce) {
+    .deck {
+      scroll-snap-type: none;
+      scroll-behavior: auto;
+    }
+  }
+}
+
+/* Пользователь отключил анимацию: переходы гасим везде (как в исходном лендинге).
+   Анимации (@keyframes) каждая секция отключает сама — в своём <style scoped>. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
