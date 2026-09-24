@@ -1,0 +1,3211 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#161A31">
+<title>WEXUS — твой узел данных. Портативное хранилище без подписки</title>
+<meta name="description" content="WEXUS — портативное физическое хранилище данных: покупаешь один раз, файлы остаются у тебя, доступ с любых устройств по Wi-Fi — с интернетом и без него.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+/* ============================================================
+   ДИЗАЙН-ТОКЕНЫ
+   Все цвета и отступы правятся здесь и нигде больше.
+   Шкала отступов повторяет логику брендборда (2.5/4/5/9 мм → 8/12/20/32/56/96 px).
+   ============================================================ */
+:root{
+  /* палитра брендборда. Тёмные фоны подняты: ниже L*10 экран в освещённой
+     комнате перестаёт их различать и страница выглядит тускло-серой. */
+  --ink:#222847;        /* Nexus Ink — приподнятая тёмная поверхность: карточки, модальное окно */
+  --graphite:#12162B;   /* Graphite — текст и линии на светлом (L*8) */
+  --cyan:#00C2B8;       /* Signal Cyan — индикаторы и одна кнопка */
+  --cyan-deep:#009189;  /* тот же тон, приглушён для светлых поверхностей */
+  --quartz:#EAE8DF;     /* Quartz — светлый фон / текст на тёмном (на линии тона Paper) */
+  --quartz-rgb:234,232,223;
+  --paper:#F2F1EC;      /* Paper — фон светлых экранов */
+  --deep:#161A31;       /* Deep Field — самый тёмный фон (L*10, на одной линии цветности с Ink) */
+  --deep-rgb:22,26,49;
+
+  /* шкала отступов: других значений в файле нет */
+  --s1:8px; --s2:12px; --s3:20px; --s4:32px; --s5:56px; --s6:96px;
+
+  /* единый радиус: кнопки, панели и корпус устройства говорят на одном языке */
+  --r:12px;
+
+  /* такт сигнала первого экрана: период волны, кривая, длительность появления
+     и три уровня — внутренний, средний, внешний. Отсюда его берут и индикатор,
+     и значок на корпусе, и дуги за ним, поэтому они не расходятся. */
+  --sig-t:2.9s;
+  --sig-e:cubic-bezier(.4,0,.3,1);
+  --sig-in:1.05s;
+  --sig-1:2.60s; --sig-2:2.85s; --sig-3:3.10s;
+
+  --padX: clamp(20px, 5vw, 80px);
+  --padY: clamp(28px, 4.5vh, 60px);
+  --maxw: 1300px;
+}
+
+html{color-scheme:dark light;}
+*{box-sizing:border-box;}
+[hidden]{display:none !important;}
+html{-webkit-text-size-adjust:100%;}
+body{
+  margin:0;
+  font-family:'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  font-size:16px;
+  color:var(--graphite);
+  background:var(--paper);
+}
+
+/* ============================================================
+   ЛЕНТА ЭКРАНОВ
+   Нативный CSS scroll-snap вместо JS-перехвата колеса: страница
+   остаётся обычной прокруткой, snap только подтягивает экран к краю.
+   proximity, а не mandatory — чтобы длинный текст на маленьком экране
+   не «дрался» с читателем.
+   ============================================================ */
+.deck{
+  height:100vh;               /* запасной вариант для старых движков */
+  height:100svh;              /* svh: не обрезается адресной строкой на iOS */
+  overflow-y:auto;
+  scroll-snap-type:y proximity;
+  scroll-behavior:smooth;
+}
+.screen{
+  min-height:100%;
+  scroll-snap-align:start;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  padding:var(--padY) var(--padX);
+  position:relative;
+  overflow:hidden;
+}
+.wrap{width:100%;max-width:var(--maxw);margin:0 auto;position:relative;z-index:1;}
+
+/* Темы экранов. Светлая и тёмная палитры не смешиваются внутри блока:
+   переменные --fg / --fg-dim / --hair / --panel переключаются целиком. */
+.screen--deep{
+  --fg:var(--quartz);
+  --fg-rgb:var(--quartz-rgb);        /* тот же цвет для rgba() внутри графика */
+  --fg-dim:rgba(var(--quartz-rgb),0.70);
+  --hair:rgba(var(--quartz-rgb),0.20);
+  --panel:rgba(var(--quartz-rgb),0.05);
+  --accent:var(--cyan);
+  --accent-rgb:0,194,184;
+  --board:var(--ink);                /* панель прибора приподнята над фоном */
+  --pill-bg:#103B38;               /* на линии акцента, а не между навигатором и бирюзой */
+  --wash-lo:0.03; --wash-hi:0.22; --sub-a:0.80;
+  color:var(--fg);
+}
+.screen--deep{background:var(--deep);}
+.screen--paper, .screen--quartz{
+  --fg:var(--graphite);
+  --fg-rgb:18,22,43;
+  --fg-dim:rgba(18,22,43,0.76);
+  --hair:rgba(18,22,43,0.15);
+  --panel:rgba(18,22,43,0.035);
+  --accent:var(--cyan-deep);         /* на светлом бирюза берётся глубже: 3.15:1 вместо 1.81:1 */
+  --accent-rgb:0,145,137;
+  --board:#FCFBF7;                   /* та же панель, но приподнятая над фоном */
+  --pill-bg:#DDEEEC;
+  --wash-lo:0.07; --wash-hi:0.30; --sub-a:0.62;
+  color:var(--fg);
+}
+.screen--paper{background:var(--paper);}
+.screen--quartz{background:var(--quartz);}
+
+/* Nodal grid — фирменный графический язык как фон, не как визуал.
+   Видимость подобрана так, чтобы сетка читалась и на приглушённом экране. */
+.screen--deep::before{
+  content:"";
+  position:absolute; inset:0;
+  background-image:radial-gradient(circle at 1.1px 1.1px, rgba(var(--quartz-rgb),0.10) 1.1px, transparent 0);
+  background-size:44px 44px;
+  pointer-events:none;
+}
+
+/* ============================================================
+   ТИПОГРАФИКА
+   ============================================================ */
+h1,h2,h3{font-family:'Space Grotesk', sans-serif;font-weight:600;margin:0;letter-spacing:-0.02em;}
+.h-display{font-size:clamp(34px, 5.4vw, 68px);line-height:1.03;}
+.h-screen{font-size:clamp(25px, 3.2vw, 42px);line-height:1.09;max-width:22ch;}
+.lede{font-size:clamp(15.5px, 1.25vw, 18px);line-height:1.55;color:var(--fg-dim);max-width:54ch;margin:0;}
+.note{font-size:13.5px;line-height:1.5;color:var(--fg-dim);margin:0;}
+p{margin:0;}
+
+/* IBM Plex Mono — только настоящие данные: модель, габариты, hex, спецификации */
+.mono{font-family:'IBM Plex Mono', monospace;font-size:12.5px;line-height:1.5;color:var(--fg-dim);}
+
+/* ============================================================
+   КНОПКИ И ССЫЛКИ
+   Одно действие на странице — одна cyan-кнопка. Повторяется в первом
+   и последнем экране, больше нигде.
+   ============================================================ */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-height:48px;padding:0 var(--s4);
+  border:none;border-radius:var(--r);
+  background:var(--cyan);color:var(--deep);
+  font-family:'IBM Plex Sans', sans-serif;font-size:16px;font-weight:600;
+  text-decoration:none;cursor:pointer;
+}
+.btn{transition:background-color .2s ease, transform .14s ease, box-shadow .3s ease;}
+.btn:hover{background:#00D9CD;box-shadow:0 0 0 6px rgba(0,194,184,0.16);}
+.btn:active{transform:scale(0.985);box-shadow:0 0 0 2px rgba(0,194,184,0.22);}
+.link-quiet{
+  display:inline-block;width:fit-content;
+  background:none;border:none;border-bottom:1px solid var(--hair);
+  font-family:'IBM Plex Sans', sans-serif;font-size:15px;color:var(--fg);
+  text-decoration:none;padding:4px 0 6px;cursor:pointer;
+  transition:border-color .2s ease;
+}
+.link-quiet:hover{border-bottom-color:var(--cyan);}
+a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible{
+  outline:2px solid var(--cyan);outline-offset:3px;
+}
+
+/* Скрыто визуально, доступно скринридеру */
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}
+
+/* Ссылка для клавиатуры: пропустить оформление первого экрана */
+.skip{
+  position:absolute;left:-9999px;top:0;z-index:60;
+  background:var(--cyan);color:var(--deep);padding:var(--s2) var(--s3);border-radius:var(--r);
+}
+.skip:focus{left:var(--s3);top:var(--s3);}
+
+/* ============================================================
+   НАВИГАЦИОННАЯ РЕЙКА (справа)
+   Не меню — индикатор положения. Пять узлов на одной линии: это
+   тот же nodal-язык, что у знака. Активный узел горит cyan —
+   «индикатор соединения».
+   ============================================================ */
+.rail{
+  position:fixed;right:16px;top:50%;transform:translateY(-50%);
+  z-index:50;display:flex;flex-direction:column;gap:var(--s3);
+  padding:var(--s3) var(--s2);
+}
+.rail::before{
+  content:"";position:absolute;left:50%;top:var(--s3);bottom:var(--s3);
+  width:1px;background:currentColor;opacity:0.25;
+}
+.rail a{
+  position:relative;display:flex;align-items:center;justify-content:flex-end;
+  text-decoration:none;color:inherit;
+}
+.rail__dot{
+  width:9px;height:9px;border-radius:50%;
+  border:1px solid currentColor;background:transparent;
+  position:relative;z-index:1;flex-shrink:0;
+}
+/* подпись выведена из потока: ширина рейки = точка, поэтому она не давит
+   на контент. Появляется только при наведении или фокусе — как подсказка */
+.rail__label{
+  position:absolute;right:calc(100% + 8px);top:50%;transform:translateY(-50%);
+  font-size:12px;line-height:1;white-space:nowrap;
+  padding:5px 9px;border-radius:var(--r);
+  opacity:0;pointer-events:none;transition:opacity .15s linear;
+}
+.rail[data-theme="dark"] .rail__label{background:rgba(var(--deep-rgb),0.92);}
+.rail[data-theme="light"] .rail__label{background:rgba(242,241,236,0.94);}
+.rail a:hover .rail__label, .rail a:focus-visible .rail__label{opacity:1;}
+.rail a[aria-current="true"] .rail__dot{background:var(--cyan);border-color:var(--cyan);}
+.rail[data-theme="light"] a[aria-current="true"] .rail__dot{background:var(--cyan-deep);border-color:var(--cyan-deep);}
+/* цвет рейки подстраивается под текущий экран */
+.rail[data-theme="dark"]{color:var(--quartz);}
+.rail[data-theme="light"]{color:var(--graphite);}
+
+/* Полоса прогресса — то же самое для узкого экрана, где рейка не помещается */
+.progress{position:fixed;top:0;left:0;right:0;height:2px;z-index:50;display:none;}
+.progress span{display:block;height:100%;width:0;background:var(--cyan);}
+
+/* ============================================================
+   ЛИПКАЯ МИНИ-ШАПКА
+   Появляется после первого экрана: на длинной странице действие
+   должно быть в руке всегда, а не только в начале и в конце.
+   На мобильном уезжает вниз — в зону большого пальца.
+   ============================================================ */
+.bar{
+  position:fixed;top:0;left:0;right:0;z-index:55;
+  display:flex;align-items:center;justify-content:space-between;gap:var(--s3);
+  padding:var(--s2) var(--padX);
+  transform:translateY(-100%);visibility:hidden;
+  transition:transform .28s ease, visibility 0s linear .28s;
+  backdrop-filter:blur(10px);
+}
+.bar.is-on{transform:none;visibility:visible;transition:transform .28s ease, visibility 0s;}
+.bar[data-theme="dark"]{background:rgba(var(--deep-rgb),0.84);color:var(--quartz);border-bottom:1px solid rgba(var(--quartz-rgb),0.14);}
+.bar[data-theme="light"]{background:rgba(242,241,236,0.88);color:var(--graphite);border-bottom:1px solid rgba(18,22,43,0.12);}
+.bar__brand{
+  display:flex;align-items:center;gap:var(--s2);color:inherit;text-decoration:none;
+  font-family:'Space Grotesk', sans-serif;font-weight:600;font-size:17px;letter-spacing:-0.015em;
+}
+.bar__brand svg{width:20px;height:17px;}
+.btn--sm{min-height:38px;padding:0 var(--s3);font-size:14px;}
+
+/* ============================================================
+   ЭКРАН 1 — HERO
+   ============================================================ */
+.hero{display:grid;grid-template-columns:minmax(0,1.14fr) minmax(0,0.86fr);gap:var(--s6);align-items:center;}
+/* верхняя и нижняя полосы первого экрана: знак и подсказка стоят по кромкам,
+   а основной блок остаётся отцентрованным по оставшейся высоте */
+#hero{position:relative;}
+.hero__top{position:absolute;left:0;right:0;top:var(--padY);padding:0 var(--padX);z-index:2;}
+.hero__bottom{position:absolute;left:0;right:0;bottom:var(--padY);padding:0 var(--padX);z-index:2;}
+.hero__mark{display:flex;align-items:center;gap:var(--s3);}
+.hero__mark svg{width:30px;height:26px;flex-shrink:0;}
+.hero__wordmark{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:26px;letter-spacing:-0.015em;line-height:1;}
+.hero h1{margin-bottom:var(--s4);}
+.hero__lede{margin-bottom:var(--s5);}
+.hero__actions{display:flex;align-items:center;gap:var(--s4);flex-wrap:wrap;}
+.hero__device{position:relative;max-width:460px;margin-left:auto;width:100%;}
+.hero__device svg{width:100%;height:auto;display:block;}
+.hero__device .mono{margin-top:var(--s3);}
+/* мягкое свечение под устройством — тот же cyan, что у индикатора */
+.hero__glow{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:78%;aspect-ratio:1/1;border-radius:50%;
+  background:radial-gradient(circle, rgba(0,194,184,0.16) 0%, rgba(0,194,184,0) 68%);
+  pointer-events:none;
+}
+/* подсказка продолжения: экран не должен выглядеть законченной страницей */
+.hero__next{
+  display:flex;align-items:center;gap:var(--s2);
+  margin-top:var(--s5);font-size:13px;color:var(--fg-dim);
+}
+.hero__next i{display:block;width:28px;height:1px;background:currentColor;opacity:0.5;}
+.hero__status{margin-top:var(--s3);}
+/* базовое состояние дуг сигнала: спрятаны до старта анимации */
+.sig path{stroke-dasharray:130;stroke-dashoffset:130;}
+
+/* ============================================================
+   ЭКРАН 2 — ПРОБЛЕМА
+   ============================================================ */
+.problem{display:grid;grid-template-columns:minmax(0,0.88fr) minmax(0,1.05fr);gap:var(--s6);align-items:center;}
+.problem__scheme{order:-1;}   /* схема слева: соседние экраны не должны строиться одинаково */
+.problem h2{margin-bottom:var(--s3);}
+.facts{margin:var(--s5) 0 0;padding:0;list-style:none;display:grid;gap:var(--s3);max-width:52ch;}
+.facts li{display:grid;grid-template-columns:auto 1fr;gap:var(--s3);align-items:start;font-size:15.5px;line-height:1.5;color:var(--fg-dim);}
+.facts b{color:var(--fg);font-weight:500;}
+.facts i{
+  display:block;width:7px;height:7px;border-radius:50%;
+  background:var(--fg);opacity:0.45;margin-top:7px;
+}
+.problem__scheme svg{width:100%;height:auto;display:block;}
+/* нижняя лента: чья это проблема. Не карточки — строки с узловыми маркерами */
+.segments{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s4);
+  margin-top:var(--s5);padding-top:var(--s4);border-top:1px solid var(--hair);
+}
+.segments div{font-size:14px;line-height:1.45;color:var(--fg-dim);}
+.segments b{
+  display:block;font-weight:500;color:var(--fg);margin-bottom:6px;
+  font-family:'Space Grotesk',sans-serif;font-size:15px;
+}
+
+/* ============================================================
+   ЭКРАН 3 — ДВА РЕЖИМА
+   ============================================================ */
+.modes{display:grid;grid-template-columns:minmax(0,0.86fr) minmax(0,1.14fr);gap:var(--s6);align-items:center;}
+.modes h2{margin-bottom:var(--s3);}
+.switch{position:relative;display:flex;gap:var(--s2);margin:var(--s5) 0 var(--s4);}
+.switch__marker{
+  position:absolute;top:0;left:0;width:0;height:0;
+  border-radius:var(--r);background:rgba(0,194,184,0.09);
+  box-shadow:inset 0 0 0 1px var(--cyan);
+  transition:transform .44s cubic-bezier(.22,1,.36,1), width .28s ease, height .28s ease;
+  pointer-events:none;
+}
+.switch button{
+  flex:1;min-height:48px;padding:0 var(--s3);
+  font-family:'IBM Plex Sans',sans-serif;font-size:15px;font-weight:500;
+  color:var(--fg-dim);background:transparent;
+  border:1px solid var(--hair);border-radius:var(--r);cursor:pointer;
+}
+.switch button{position:relative;z-index:1;transition:border-color .2s ease, color .2s ease;}
+.switch button:hover{color:var(--fg);border-color:var(--fg-dim);}
+.switch button:active{transform:scale(0.99);}
+.switch button[aria-selected="true"]{color:var(--fg);border-color:transparent;}
+.mode-text{min-height:5.5em;}
+.mode-text > div{display:none;}
+.mode-text > div.is-on{display:block;}
+.modes__scheme svg{width:100%;height:auto;display:block;}
+.modes .note{margin-top:var(--s3);}
+/* переключение состояний схемы — через класс на обёртке */
+.scheme [data-mode="local"], .scheme [data-mode="solo"]{display:none;}
+.scheme.is-local [data-mode="local"]{display:block;}
+.scheme.is-solo [data-mode="solo"]{display:block;}
+
+/* последовательность из трёх шагов — здесь нумерация оправдана,
+   это действительно порядок действий, а не список преимуществ */
+.steps{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s3);
+  margin-top:var(--s4);padding-top:var(--s3);border-top:1px solid var(--hair);
+}
+.steps div{display:grid;grid-template-columns:auto 1fr;gap:var(--s2);font-size:13.5px;line-height:1.45;color:var(--fg-dim);}
+.steps b{font-family:'IBM Plex Mono', monospace;font-weight:500;color:var(--fg);}
+
+/* ============================================================
+   ДВИЖЕНИЕ
+   Все анимации — из фирменного языка: сигнал, соединение, черчение.
+   Ни одна не длиннее 0.7 с, ни одна не смещает layout.
+   ============================================================ */
+@keyframes sig-draw{ from{ stroke-dashoffset:130; opacity:0; } to{ stroke-dashoffset:0; opacity:var(--lo); } }
+/* значок на корпусе появляется так же, только чертить в нём нечего */
+@keyframes sig-in{ from{ opacity:0; } to{ opacity:var(--lo); } }
+/* волна расходится наружу: дуги вспыхивают по очереди, а не мигают вместе */
+@keyframes sig-wave{
+  0%   { opacity:var(--lo); stroke-width:var(--w); }
+  18%  { opacity:var(--hi); stroke-width:calc(var(--w) * 1.5); }
+  60%  { opacity:var(--lo); stroke-width:var(--w); }
+  100% { opacity:var(--lo); stroke-width:var(--w); }
+}
+@keyframes led-blink{
+  0%   { opacity:var(--idle,.34); transform:scale(1); }
+  18%  { opacity:1; transform:scale(1.85); }
+  46%  { opacity:1; transform:scale(1.2); }
+  100% { opacity:var(--idle,.34); transform:scale(1); }
+}
+@keyframes led-breathe{ 0%,100%{ opacity:.55; transform:scale(.82);} 50%{ opacity:1; transform:scale(1);} }
+@keyframes cl-ping{ 0%{opacity:0;transform:scale(.3);} 30%{opacity:1;transform:scale(1.25);} 100%{opacity:.4;transform:scale(1);} }
+@keyframes bp-rise{ from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:none;} }
+@keyframes bp-line{ from{stroke-dashoffset:var(--len,140);} to{stroke-dashoffset:0;} }
+@keyframes bp-fade{ from{opacity:0;transform:translateX(var(--dx,-8px));} to{opacity:1;transform:none;} }
+@keyframes halo{ 0%{opacity:.6;transform:scale(1);} 100%{opacity:0;transform:scale(3.2);} }
+
+/* Один такт на весь первый экран (значения — в токенах наверху): появление
+   заканчивается ровно тогда, когда начинается волна, поэтому первый показ
+   не выбивается из ритма, а дальше всё идёт одним периодом. */
+/* сигнал в первом экране: сначала прочерчивается, затем расходится волной наружу */
+.sig path{opacity:0;}
+.sig path{
+  animation:
+    sig-draw var(--sig-in) cubic-bezier(.33,0,.2,1) forwards,
+    sig-wave var(--sig-t) var(--sig-e) infinite;
+}
+.sig path:nth-of-type(1){--hi:1;   --lo:.10; --w:1.1; animation-delay:calc(var(--sig-1) - var(--sig-in)), var(--sig-1);}
+.sig path:nth-of-type(2){--hi:.78; --lo:.07; --w:1;   animation-delay:calc(var(--sig-2) - var(--sig-in)), var(--sig-2);}
+.sig path:nth-of-type(3){--hi:.52; --lo:.05; --w:.9;  animation-delay:calc(var(--sig-3) - var(--sig-in)), var(--sig-3);}
+
+/* значок на корпусе: те же keyframes, период и задержки — точка и дуги
+   появляются и вспыхивают вместе с дугами своего уровня за корпусом */
+.hero-wifi > *{
+  opacity:0;
+  animation:
+    sig-in var(--sig-in) cubic-bezier(.33,0,.2,1) forwards,
+    sig-wave var(--sig-t) var(--sig-e) infinite;
+}
+.hero-wifi .wf1{--hi:.95; --lo:.34; --w:.8; animation-delay:calc(var(--sig-1) - var(--sig-in)), var(--sig-1);}
+.hero-wifi .wf2{--hi:.8;  --lo:.26; --w:.8; animation-delay:calc(var(--sig-2) - var(--sig-in)), var(--sig-2);}
+.hero-wifi .wf3{--hi:.65; --lo:.2;  --w:.8; animation-delay:calc(var(--sig-3) - var(--sig-in)), var(--sig-3);}
+
+/* индикатор на корпусе дышит в такт расходящейся волне */
+@keyframes hero-led{ 0%{opacity:.5;} 18%{opacity:1;} 60%{opacity:.5;} 100%{opacity:.5;} }
+@keyframes hero-halo{ 0%{opacity:.25;transform:scale(.9);} 18%{opacity:.75;transform:scale(1.18);} 60%{opacity:.25;transform:scale(.9);} 100%{opacity:.25;transform:scale(.9);} }
+.hero__device .led-core{animation:hero-led var(--sig-t) var(--sig-e) var(--sig-1) infinite both;}
+.hero__device .led-halo{transform-box:fill-box;transform-origin:center;animation:hero-halo var(--sig-t) var(--sig-e) var(--sig-1) infinite both;}
+
+/* диоды узлов: тускло горят в покое и вспыхивают, когда пакет уходит или приходит */
+.node-led{transform-box:fill-box;transform-origin:center;opacity:var(--idle,.34);}
+.node-led.is-blink{animation:led-blink .72s cubic-bezier(.22,1,.36,1);}
+/* «пакеты»: положение, размер и прозрачность считает скрипт */
+.pkt{opacity:0;pointer-events:none;stroke:none;}
+/* связи появляются не при загрузке страницы, а когда экран открылся */
+.scheme:not(.is-live) g[stroke-dasharray] > path{opacity:0;}
+
+/* чертёж собирается при первом появлении: корпус, затем выноски, затем подписи */
+.blueprint .bp-body, .blueprint .bp-side, .blueprint .bp-ant, .blueprint .bp-engrave,
+.blueprint .bp-batt, .blueprint .bp-led, .blueprint .bp-glow{transform-box:fill-box;transform-origin:center;}
+.blueprint.is-in .bp-body{animation:bp-rise .62s cubic-bezier(.22,1,.36,1) both;}
+.blueprint.is-in .bp-side{animation:bp-rise .62s cubic-bezier(.22,1,.36,1) .08s both;}
+.blueprint.is-in .bp-ant{animation:bp-fade .5s ease .34s both;--dx:0;}
+.blueprint.is-in .bp-engrave{animation:bp-fade .5s ease .42s both;--dx:0;}
+.blueprint.is-in .bp-leaders path{stroke-dasharray:var(--len,140);animation:bp-line .5s cubic-bezier(.22,1,.36,1) both;}
+.blueprint.is-in .bp-leaders path:nth-of-type(1){animation-delay:.30s;}
+.blueprint.is-in .bp-leaders path:nth-of-type(2){animation-delay:.36s;}
+.blueprint.is-in .bp-leaders path:nth-of-type(3){animation-delay:.42s;}
+.blueprint.is-in .bp-leaders path:nth-of-type(4){animation-delay:.48s;}
+.blueprint.is-in .bp-leaders path:nth-of-type(5){animation-delay:.54s;}
+.blueprint.is-in .bp-leaders path:nth-of-type(6){animation-delay:.60s;}
+.blueprint.is-in .bp-callouts text, .blueprint.is-in .bp-dots circle{animation:bp-fade .45s ease both;}
+.blueprint.is-in .bp-callouts text:nth-of-type(n+4), .blueprint.is-in .bp-dots circle:nth-of-type(n+4){--dx:8px;}
+.blueprint.is-in .bp-callouts text:nth-of-type(1),.blueprint.is-in .bp-dots circle:nth-of-type(1){animation-delay:.46s;}
+.blueprint.is-in .bp-callouts text:nth-of-type(2),.blueprint.is-in .bp-dots circle:nth-of-type(2){animation-delay:.52s;}
+.blueprint.is-in .bp-callouts text:nth-of-type(3),.blueprint.is-in .bp-dots circle:nth-of-type(3){animation-delay:.58s;}
+.blueprint.is-in .bp-callouts text:nth-of-type(4),.blueprint.is-in .bp-dots circle:nth-of-type(4){animation-delay:.64s;}
+.blueprint.is-in .bp-callouts text:nth-of-type(5),.blueprint.is-in .bp-dots circle:nth-of-type(5){animation-delay:.70s;}
+.blueprint.is-in .bp-callouts text:nth-of-type(6),.blueprint.is-in .bp-dots circle:nth-of-type(6){animation-delay:.76s;}
+.blueprint .bp-led{animation:led-breathe 3.4s ease-in-out infinite;}
+
+/* точка окупаемости расходится волной — тот же сигнал, что у индикатора */
+.be-halo{transform-box:fill-box;transform-origin:center;animation:halo 1.9s ease-out infinite;}
+
+/* ============================================================
+   ЭКРАН 4 — УСТРОЙСТВО
+   ============================================================ */
+/* выбор объёма: тот же язык, что у переключателя режимов */
+/* объёмы: одна подложка с бегунком вместо четырёх отдельных кнопок */
+.caps{
+  position:relative;display:grid;grid-template-columns:repeat(4,1fr);
+  margin:var(--s4) 0 var(--s2);
+  border:1px solid var(--hair);border-radius:var(--r);background:transparent;
+}
+.caps__marker{
+  position:absolute;top:0;left:0;width:0;height:0;
+  border-radius:var(--r);
+  background:rgba(0,194,184,0.10);
+  box-shadow:inset 0 0 0 1px var(--accent);
+  transition:transform .42s cubic-bezier(.22,1,.36,1), width .28s ease, height .28s ease;
+  pointer-events:none;
+}
+.caps button{
+  position:relative;z-index:1;
+  min-height:52px;padding:0 var(--s2);
+  font-family:'Space Grotesk', sans-serif;font-weight:600;font-size:clamp(15px,1.3vw,18px);
+  color:var(--fg-dim);background:transparent;border:none;cursor:pointer;
+  transition:color .2s ease;
+}
+.caps button:hover{color:var(--fg);}
+.caps button[aria-pressed="true"]{color:var(--fg);}
+
+#capEngrave{transition:opacity .13s ease, transform .13s ease;}
+#capEngrave.is-swap{opacity:0;transform:translateY(-3px);}
+
+/* ============================================================
+   ЭКРАН 5 — СРАВНЕНИЕ
+   ============================================================ */
+.compare h2, .closing h2{margin-bottom:var(--s3);}
+.compare{display:grid;grid-template-columns:minmax(0,1fr);row-gap:var(--s4);}
+.compare__head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:var(--s6);align-items:end;}
+.cmp{width:100%;border-collapse:collapse;table-layout:fixed;}
+.cmp th, .cmp td{overflow-wrap:break-word;hyphens:auto;}
+.cmp th, .cmp td{
+  text-align:left;padding:10px var(--s3) 10px 0;
+  font-size:13.5px;font-weight:400;line-height:1.4;vertical-align:top;
+  border-bottom:1px solid var(--hair);
+}
+.cmp thead th{
+  font-family:'Space Grotesk', sans-serif;font-weight:600;font-size:15px;color:var(--fg);
+  padding-bottom:var(--s2);
+}
+.cmp tbody th{color:var(--fg-dim);width:25%;font-weight:400;}
+.cmp td{color:var(--fg-dim);width:25%;}
+/* колонка продукта выделена подложкой, а не цветом текста */
+.cmp .own{background:var(--panel);color:var(--fg);padding-left:var(--s2);}
+.cmp thead .own{display:table-cell;}
+/* у ячеек нет левого поля, поэтому соседняя колонка вплотную упиралась в подложку — отступаем */
+.cmp .own + th, .cmp .own + td{padding-left:var(--s3);}
+.cmp .own-node{
+  display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--accent);margin-right:7px;vertical-align:middle;
+}
+
+/* ============================================================
+   ЭКРАН 7 — ВОПРОСЫ, СТАТУС, ФИНАЛЬНЫЙ CTA
+   ============================================================ */
+.closing{display:grid;grid-template-columns:minmax(0,0.88fr) minmax(0,1.12fr);gap:var(--s6);align-items:center;
+  flex:1;align-content:center;}
+.faq{display:grid;}
+.faq__item{position:relative;border-bottom:1px solid var(--hair);}
+.faq__q{
+  position:relative;width:100%;
+  display:flex;align-items:center;justify-content:space-between;gap:var(--s3);
+  min-height:54px;padding:14px 0;
+  background:none;border:0;cursor:pointer;text-align:left;
+  font-family:'IBM Plex Sans', sans-serif;font-size:15px;line-height:1.35;color:var(--fg-dim);
+  transition:color .22s ease, padding-left .34s cubic-bezier(.22,1,.36,1);
+}
+/* узловая точка слева — тот же язык, что у знака: наведённый вопрос «подключается» */
+.faq__node{
+  position:absolute;left:0;top:50%;width:7px;height:7px;margin-top:-3.5px;border-radius:50%;
+  background:var(--cyan);opacity:0;transform:scale(.2);
+  transition:opacity .22s ease, transform .34s cubic-bezier(.34,1.56,.64,1);
+}
+.faq__q:hover, .faq__q:focus-visible{color:var(--fg);padding-left:20px;}
+.faq__q:hover .faq__node, .faq__q:focus-visible .faq__node{opacity:.55;transform:scale(1);}
+.faq__q[aria-expanded="true"]{color:var(--fg);padding-left:20px;}
+.faq__q[aria-expanded="true"] .faq__node{opacity:1;transform:scale(1);}
+.faq__sign{width:14px;height:14px;flex-shrink:0;overflow:visible;transition:transform .38s cubic-bezier(.22,1,.36,1);}
+.faq__sign line{stroke:currentColor;stroke-width:1.3;transition:transform .38s cubic-bezier(.22,1,.36,1), opacity .2s ease;transform-origin:8px 8px;}
+.faq__q:hover .faq__sign{color:var(--cyan);transform:scale(1.18);}
+.faq__q[aria-expanded="true"] .faq__sign{transform:rotate(180deg);color:var(--cyan);}
+.faq__q[aria-expanded="true"] .faq__sign .v{transform:scaleY(0);opacity:0;}
+/* раскрытие: строка грид-контейнера растёт от 0fr к 1fr — без скачка высоты */
+.faq__a{
+  display:grid;grid-template-rows:0fr;opacity:0;visibility:hidden;
+  transition:grid-template-rows .38s cubic-bezier(.22,1,.36,1), opacity .26s ease, visibility 0s linear .38s;
+}
+.faq__a > div{overflow:hidden;}
+.faq__item.is-open .faq__a{
+  grid-template-rows:1fr;opacity:1;visibility:visible;
+  transition:grid-template-rows .38s cubic-bezier(.22,1,.36,1), opacity .3s ease .06s, visibility 0s;
+}
+.faq p{margin:0 0 var(--s3);padding-left:20px;font-size:14px;line-height:1.55;color:var(--fg-dim);max-width:60ch;}
+
+.status{display:grid;gap:7px;margin:var(--s4) 0 var(--s4);padding-top:var(--s3);border-top:1px solid var(--hair);}
+.status div{display:grid;grid-template-columns:15ch 1fr;gap:var(--s2);font-size:13.5px;color:var(--fg-dim);}
+.status b{font-family:'IBM Plex Mono', monospace;font-weight:500;color:var(--fg);}
+.device{display:grid;grid-template-columns:minmax(0,1fr);row-gap:var(--s4);}
+.device__head{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:var(--s6);align-items:end;}
+/* ширина чертежа привязана и к высоте окна: на невысоких экранах
+   разворот целиком должен помещаться в один экран */
+/* чертёж ограничиваем по высоте, а не по ширине: так он остаётся
+   максимально крупным и разворот всё равно помещается в экран */
+.device__drawing{width:fit-content;max-width:100%;margin:0 auto;}
+/* высота задаётся явно, ширина следует за пропорцией: легенда под чертежом
+   получает ровно ту же ширину и выравнивается по его краям */
+.device__drawing svg{width:auto;height:min(352px, 32.5vh);max-width:100%;}
+.device__data{display:grid;grid-template-columns:minmax(0,0.85fr) minmax(0,1.15fr);gap:var(--s6);align-items:start;}
+.device__data .caps{margin-top:0;}
+.device h2{margin-bottom:var(--s3);}
+.volumes{display:flex;flex-wrap:wrap;gap:var(--s4);margin:var(--s5) 0 var(--s4);}
+.volumes span{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(20px,2vw,28px);line-height:1;}
+.volumes span[data-proto]{position:relative;}
+.volumes span[data-proto]::after{
+  content:"";position:absolute;left:50%;bottom:-11px;transform:translateX(-50%);
+  width:6px;height:6px;border-radius:50%;background:var(--accent);
+}
+.spec{width:100%;border-collapse:collapse;margin-top:var(--s4);}
+.spec th, .spec td{
+  text-align:left;padding:7px 0;border-bottom:1px solid var(--hair);
+  font-weight:400;font-size:13.5px;vertical-align:baseline;
+}
+.spec th{color:var(--fg-dim);width:52%;}
+.spec td{font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--fg);}
+.spec td[data-tbd]{color:var(--fg-dim);}
+.device__drawing svg{display:block;}
+/* легенда — только для узких экранов: на десктопе подписи стоят у самих элементов */
+.legend{display:none;grid-template-columns:repeat(2,1fr);gap:var(--s2) var(--s4);margin-top:var(--s3);}
+.legend div{font-size:13px;color:var(--fg-dim);display:grid;grid-template-columns:auto 1fr;gap:var(--s2);align-items:start;}
+.legend i{display:block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-top:6px;}
+
+/* ============================================================
+   ЭКРАН 6 — ЭКОНОМИКА ВЛАДЕНИЯ
+   Шапка как у сравнения и устройства, под ней — один «прибор»:
+   слева ввод, справа итог и график. Причина и следствие на одной панели.
+   ============================================================ */
+.screen--final{justify-content:space-between;gap:var(--s4);padding-top:var(--s4);padding-bottom:var(--s4);}
+.econ{display:grid;grid-template-columns:minmax(0,1fr);row-gap:var(--s4);}
+.econ__head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:var(--s6);align-items:end;}
+
+/* панель-прибор: на тёмном экране утоплена, на светлом приподнята — см. --board */
+.econ__board{
+  display:grid;grid-template-columns:minmax(300px,0.38fr) minmax(0,1fr);
+  background:var(--board);border:1px solid var(--hair);border-radius:var(--r);
+  box-shadow:0 24px 60px rgba(0,0,0,0.16);
+}
+
+/* ——— ввод ——— */
+.calc{display:flex;flex-direction:column;gap:var(--s3);padding:var(--s4);border-right:1px solid var(--hair);}
+.calc__field{display:grid;gap:var(--s1);}
+.calc__label{margin:0;font-size:13.5px;color:var(--fg-dim);}
+.calc__hint{margin:0;font-size:12.5px;line-height:1.4;color:var(--fg-dim);opacity:0.75;}
+/* поле с единицей внутри и степперами: число, «₽ в месяц», − + */
+.num{
+  display:flex;align-items:stretch;min-height:54px;
+  background:var(--panel);border:1px solid var(--hair);border-radius:var(--r);
+  transition:border-color .2s ease, background-color .2s ease;
+}
+.num:hover{border-color:rgba(var(--fg-rgb),0.34);}
+.num:focus-within{border-color:var(--accent);background:rgba(0,194,184,0.05);}
+.num input{
+  width:calc(5ch + var(--s3));min-width:0;padding:0 0 0 var(--s3);
+  font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:500;color:var(--fg);
+  background:transparent;border:0;border-radius:var(--r) 0 0 var(--r);
+  -moz-appearance:textfield;appearance:textfield;
+}
+.num input::-webkit-outer-spin-button, .num input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+.num input:focus-visible{outline:none;}
+.num__unit{flex:1;display:flex;align-items:center;padding:0 var(--s1) 0 6px;font-size:13.5px;color:var(--fg-dim);white-space:nowrap;cursor:text;}
+.num__btn{
+  flex:0 0 42px;display:flex;align-items:center;justify-content:center;padding:0;
+  background:none;border:0;border-left:1px solid var(--hair);color:var(--fg-dim);cursor:pointer;
+  touch-action:manipulation;
+  transition:color .2s ease, background-color .2s ease;
+}
+.num__btn:last-child{border-radius:0 var(--r) var(--r) 0;}
+.num__btn:hover{color:var(--accent);background:rgba(0,194,184,0.06);}
+.num__btn:active{background:rgba(0,194,184,0.13);}
+.num__btn svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;}
+
+/* срок использования: сегменты на одной подложке — тот же язык, что у выбора объёма */
+.term{min-width:0;margin:0;padding:0;border:0;}
+.term legend{padding:0;margin-bottom:var(--s1);}
+.term .calc__hint{margin-top:var(--s1);}
+.term__opts{
+  display:grid;grid-template-columns:repeat(6,minmax(0,1fr));
+  background:var(--panel);border:1px solid var(--hair);border-radius:var(--r);
+}
+.term__opts label{position:relative;display:block;cursor:pointer;}
+.term__opts label + label{border-left:1px solid var(--hair);}
+.term__opts input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer;}
+.term__opts span{
+  display:flex;align-items:center;justify-content:center;min-height:44px;
+  font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:500;color:var(--fg-dim);
+  border-radius:calc(var(--r) - 1px);
+  transition:color .2s ease, background-color .2s ease, box-shadow .2s ease;
+}
+.term__opts label:hover span{color:var(--fg);}
+.term__opts input:checked + span{color:var(--fg);background:rgba(0,194,184,0.10);box-shadow:inset 0 0 0 1px var(--accent);}
+.term__opts input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px;}
+
+/* сколько стоит месяц: подписка против покупки, разделённой на срок */
+.permo{
+  display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:var(--s1) var(--s2);
+  margin-top:auto;padding-top:var(--s3);border-top:1px solid var(--hair);
+}
+.permo .calc__label{grid-column:1 / -1;}
+.permo__name{min-width:8ch;font-size:13px;color:var(--fg-dim);}
+.permo b{font-family:'IBM Plex Mono',monospace;font-size:13.5px;font-weight:500;color:var(--fg);text-align:right;}
+.permo__bar{display:block;height:6px;border-radius:3px;background:rgba(var(--fg-rgb),0.10);overflow:hidden;}
+.permo__bar span{display:block;height:100%;width:0;border-radius:3px;background:rgba(var(--fg-rgb),0.62);}
+.permo__bar--own span{background:var(--accent);}
+
+/* ——— итог ——— */
+.viz{display:flex;flex-direction:column;gap:var(--s3);padding:var(--s4);min-width:0;}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:0;}
+.stat{display:grid;align-content:start;gap:4px;min-width:0;padding:0 var(--s3);border-left:1px solid var(--hair);}
+.stat:first-child{padding-left:0;border-left:0;}
+.stat dt{font-size:13px;color:var(--fg-dim);}
+.stat dd{margin:0;}
+.stat__value{
+  display:flex;align-items:center;gap:10px;
+  font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(22px,2.1vw,30px);
+  line-height:1.15;letter-spacing:-0.01em;color:var(--fg);white-space:nowrap;
+}
+.stat__sub{font-size:12.5px;line-height:1.4;color:var(--fg-dim);opacity:0.8;}
+/* узел окупаемости: горит, только когда покупка отбивается в пределах горизонта */
+.stat__node{flex-shrink:0;width:8px;height:8px;border-radius:50%;background:rgba(var(--fg-rgb),0.28);}
+.econ__board.has-payback .stat__node{background:var(--accent);animation:econ-ping 2.2s ease-out infinite;}
+@keyframes econ-ping{
+  from{box-shadow:0 0 0 0 rgba(var(--accent-rgb),0.45);}
+  to{box-shadow:0 0 0 10px rgba(var(--accent-rgb),0);}
+}
+
+/* ——— график ——— */
+.plot{flex:1;display:flex;flex-direction:column;gap:var(--s2);margin:0;min-width:0;}
+.plot__head{
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--s1) var(--s3);
+  padding-top:var(--s3);border-top:1px solid var(--hair);
+}
+.plot__legend{display:flex;flex-wrap:wrap;gap:6px var(--s3);margin:0;padding:0;list-style:none;font-size:12.5px;color:var(--fg-dim);}
+.plot__legend li{display:flex;align-items:center;gap:var(--s1);}
+.key{display:block;flex-shrink:0;width:16px;height:2px;border-radius:1px;}
+.key--sub{background:rgba(var(--fg-rgb),var(--sub-a,0.8));}
+.key--own{background:var(--accent);}
+.key--wash{width:12px;height:12px;border-radius:3px;background:linear-gradient(90deg, rgba(var(--accent-rgb),0.10), rgba(var(--accent-rgb),0.38));}
+/* график забирает остаток высоты: если колонка ввода выше, он растёт, а не оставляет пустоту */
+.plot__canvas{position:relative;flex:1 1 auto;min-height:clamp(200px,30vh,320px);}
+.plot__canvas svg{position:absolute;inset:0;width:100%;height:100%;display:block;overflow:visible;cursor:crosshair;touch-action:pan-y;}
+.plot__canvas svg:focus-visible{outline:2px solid var(--accent);outline-offset:6px;border-radius:4px;}
+.plot figcaption{font-size:12.5px;}
+
+/* элементы графика: цвета здесь, геометрию считает скрипт */
+.ch-grid{stroke:rgba(var(--fg-rgb),0.09);stroke-width:1;}
+.ch-base{stroke:rgba(var(--fg-rgb),0.26);stroke-width:1;}
+.ch-tick{font-family:'IBM Plex Mono',monospace;font-size:11px;fill:rgba(var(--fg-rgb),0.62);}
+.ch-sub{stroke:rgba(var(--fg-rgb),var(--sub-a));stroke-width:2;stroke-linecap:round;}
+.ch-own{fill:none;stroke:var(--accent);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.ch-wash{fill:url(#econWash);}
+.ch-note{font-family:'IBM Plex Sans',sans-serif;font-size:12px;fill:rgba(var(--fg-rgb),0.85);}
+.ch-end{font-family:'IBM Plex Sans',sans-serif;font-size:12.5px;font-weight:500;fill:var(--fg);}
+.ch-dot{stroke:var(--board);stroke-width:2;}
+.ch-dot--sub{fill:var(--fg);}
+.ch-dot--own{fill:var(--accent);}
+.ch-guide{stroke:var(--accent);stroke-width:1;stroke-dasharray:2 4;opacity:0.55;}
+.ch-node{fill:var(--accent);stroke:var(--board);stroke-width:2;}
+.be-halo{fill:none;stroke:var(--accent);stroke-width:1.4;}
+.ch-pill rect{fill:var(--pill-bg);stroke:rgba(var(--accent-rgb),0.45);stroke-width:1;}
+.ch-pill text{font-family:'IBM Plex Sans',sans-serif;font-size:12px;fill:var(--fg);}
+.ch-pill--later rect{fill:var(--board);stroke:rgba(var(--fg-rgb),0.26);}
+.ch-pill--later text{fill:rgba(var(--fg-rgb),0.72);}
+.ch-cross{stroke:rgba(var(--fg-rgb),0.50);stroke-width:1;}
+
+/* подсказка при наведении: значение крупнее подписи */
+.tip{
+  /* читалка прибора всегда тёмная — поэтому она несёт свои токены, а не берёт их у экрана */
+  --fg:var(--quartz);
+  --fg-rgb:var(--quartz-rgb);
+  --fg-dim:rgba(var(--quartz-rgb),0.70);
+  --hair:rgba(var(--quartz-rgb),0.16);
+  position:absolute;left:0;top:0;z-index:2;min-width:184px;padding:10px var(--s2);
+  background:rgba(18,22,43,0.96);border:1px solid rgba(var(--quartz-rgb),0.18);border-radius:var(--r);
+  box-shadow:0 14px 34px rgba(0,0,0,0.45);pointer-events:none;
+  font-size:12.5px;color:var(--fg-dim);
+}
+.tip__title{margin:0 0 6px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--fg-dim);}
+.tip__row{display:grid;grid-template-columns:16px minmax(0,1fr) auto;align-items:center;gap:var(--s1);line-height:1.75;}
+.tip__row b{font-family:'IBM Plex Mono',monospace;font-weight:500;color:var(--fg);text-align:right;}
+.tip__row--diff{margin-top:4px;padding-top:4px;border-top:1px solid var(--hair);}
+
+/* появление: цифры и шкала поднимаются по очереди, линии прочерчивает скрипт */
+.econ.is-pending .stat, .econ.is-pending .plot__head, .econ.is-pending .permo{opacity:0;}
+.econ.is-in .stat, .econ.is-in .plot__head, .econ.is-in .permo{animation:bp-rise .6s cubic-bezier(.22,1,.36,1) both;}
+.econ.is-in .stat:nth-child(2){animation-delay:.08s;}
+.econ.is-in .stat:nth-child(3){animation-delay:.16s;}
+.econ.is-in .plot__head{animation-delay:.24s;}
+.econ.is-in .permo{animation-delay:.3s;}
+/* ============================================================
+   ПОДВАЛ
+   Четыре колонки: бренд, навигация, проект, правовая часть.
+   Ниже — строка дисклеймеров и узловой знак.
+   ============================================================ */
+.site-foot{padding-top:var(--s3);border-top:1px solid var(--hair);}
+.site-foot__grid{
+  display:grid;grid-template-columns:minmax(0,1.25fr) repeat(3, minmax(0,1fr));
+  gap:var(--s4) var(--s5);
+}
+.site-foot__lockup{display:flex;align-items:center;gap:var(--s2);color:var(--fg);}
+.site-foot__lockup svg{width:22px;height:19px;}
+.site-foot__lockup span{font-family:'Space Grotesk', sans-serif;font-weight:600;font-size:19px;letter-spacing:-0.015em;}
+.site-foot__claim{font-size:13.5px;color:var(--fg);margin:var(--s2) 0 6px;}
+.site-foot__brand .mono{font-size:11.5px;}
+.site-foot__col{display:grid;align-content:start;gap:7px;}
+.site-foot__col:has(a){gap:0;}
+.site-foot__h{font-size:13px;color:var(--fg);margin:0 0 4px;}
+.site-foot__col a{
+  font-size:13px;color:var(--fg-dim);text-decoration:none;width:fit-content;
+  /* минимальная зона нажатия 24px по WCAG 2.2 */
+  min-height:24px;padding:4px 0;display:flex;align-items:center;
+  transition:color .2s ease, transform .25s cubic-bezier(.22,1,.36,1);
+}
+.site-foot__col a:hover{color:var(--fg);transform:translateX(4px);}
+.site-foot__col .note{font-size:12.5px;}
+.site-foot__col .link-quiet{font-size:13px;margin-top:4px;}
+.site-foot__bottom{
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) auto;
+  align-items:center;gap:var(--s4);
+  margin-top:var(--s4);padding-top:var(--s3);border-top:1px solid var(--hair);
+}
+.site-foot__bottom .note{font-size:12px;}
+.site-foot__mark{width:88px;height:26px;opacity:0.5;color:var(--fg);}
+
+
+/* ============================================================
+   МОДАЛЬНОЕ ОКНО ЗАЯВКИ
+   ============================================================ */
+.modal{
+  width:min(640px, calc(100vw - 2 * var(--s4)));
+  max-height:min(88vh, 860px);
+  padding:0;border:none;background:transparent;overflow:visible;
+  color:var(--quartz);
+}
+.modal::backdrop{background:rgba(6,8,16,0.72);opacity:0;transition:opacity .3s ease;}
+.modal[open]::backdrop{opacity:1;}
+.modal__card{
+  position:relative;overflow-y:auto;max-height:inherit;
+  padding:var(--s5) var(--s5) var(--s4);
+  background:var(--ink);border:1px solid rgba(var(--quartz-rgb),0.14);border-radius:var(--r);
+  --fg:var(--quartz);--fg-dim:rgba(var(--quartz-rgb),0.70);--hair:rgba(var(--quartz-rgb),0.16);--panel:rgba(var(--quartz-rgb),0.05);
+  box-shadow:0 30px 80px rgba(0,0,0,0.5);
+  opacity:0;transform:translateY(14px) scale(.985);
+  transition:opacity .28s ease, transform .38s cubic-bezier(.22,1,.36,1);
+}
+.modal.is-open .modal__card{opacity:1;transform:none;}
+/* соединение установлено: по верхней кромке прочерчивается сигнальная линия */
+.modal__wire{
+  position:absolute;left:0;top:0;height:2px;width:0;background:var(--cyan);
+  border-radius:2px;transition:width .6s cubic-bezier(.22,1,.36,1) .12s;
+}
+.modal.is-open .modal__wire{width:100%;}
+.modal__close{
+  position:absolute;top:var(--s3);right:var(--s3);width:36px;height:36px;
+  display:flex;align-items:center;justify-content:center;
+  background:transparent;border:1px solid var(--hair);border-radius:var(--r);cursor:pointer;color:var(--fg-dim);
+  transition:color .2s ease, border-color .2s ease, transform .2s ease;
+}
+.modal__close:hover{color:var(--fg);border-color:var(--fg-dim);transform:rotate(90deg);}
+.modal__close svg{width:14px;height:14px;stroke:currentColor;stroke-width:1.4;}
+.modal__title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:clamp(22px,2.4vw,28px);line-height:1.12;margin:0 0 var(--s2);}
+.modal__lede{margin-bottom:var(--s4);}
+
+.form{display:grid;gap:var(--s3);}
+.field{display:grid;gap:6px;}
+.field__label{font-size:13.5px;color:var(--fg-dim);}
+.field__opt{font-size:12px;opacity:0.7;}
+.field input, .field select, .field textarea{
+  width:100%;min-height:46px;padding:11px var(--s3);
+  font-family:'IBM Plex Sans',sans-serif;font-size:15px;color:var(--fg);
+  background:var(--panel);border:1px solid var(--hair);border-radius:var(--r);
+  transition:border-color .2s ease, background-color .2s ease;
+}
+.field textarea{min-height:82px;resize:vertical;line-height:1.5;}
+.field input:hover, .field select:hover, .field textarea:hover{border-color:var(--fg-dim);}
+.field input:focus, .field select:focus, .field textarea:focus{border-color:var(--cyan);outline:none;background:rgba(0,194,184,0.05);}
+.field input::placeholder, .field textarea::placeholder{color:rgba(var(--quartz-rgb),0.46);}
+.field__error{
+  font-size:12.5px;color:#FF8A7A;
+  max-height:0;opacity:0;overflow:hidden;
+  transition:max-height .25s ease, opacity .2s ease;
+}
+.field.is-bad input, .field.is-bad select{border-color:#FF8A7A;}
+.field.is-bad .field__error{max-height:40px;opacity:1;}
+
+/* согласие */
+.consent{
+  display:grid;gap:var(--s2);
+  margin-top:var(--s2);padding:var(--s3);
+  background:var(--panel);border:1px solid var(--hair);border-radius:var(--r);
+}
+.consent__check{display:grid;grid-template-columns:auto 1fr;gap:var(--s2);align-items:start;cursor:pointer;}
+.consent__check input{position:absolute;opacity:0;width:22px;height:22px;margin:0;cursor:pointer;}
+.consent__box{
+  width:22px;height:22px;border:1px solid var(--fg-dim);border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  transition:border-color .2s ease, background-color .2s ease;
+}
+.consent__box svg{width:14px;height:14px;fill:none;stroke:var(--deep);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;
+  stroke-dasharray:18;stroke-dashoffset:18;transition:stroke-dashoffset .3s cubic-bezier(.22,1,.36,1);}
+.consent__check input:checked + .consent__box{background:var(--cyan);border-color:var(--cyan);}
+.consent__check input:checked + .consent__box svg{stroke-dashoffset:0;}
+.consent__check input:focus-visible + .consent__box{outline:2px solid var(--cyan);outline-offset:3px;}
+.consent__text{font-size:13.5px;line-height:1.5;color:var(--fg);}
+.consent__toggle{
+  justify-self:start;background:none;border:none;padding:4px 0 6px;cursor:pointer;
+  font-family:'IBM Plex Sans',sans-serif;font-size:13px;color:var(--fg-dim);
+  border-bottom:1px solid var(--hair);transition:color .2s ease, border-color .2s ease;
+}
+.consent__toggle:hover{color:var(--fg);border-color:var(--cyan);}
+.consent__body{display:grid;grid-template-rows:0fr;opacity:0;visibility:hidden;
+  transition:grid-template-rows .38s cubic-bezier(.22,1,.36,1), opacity .25s ease, visibility 0s linear .38s;}
+.consent__body > div{overflow:hidden;}
+.consent.is-open .consent__body{grid-template-rows:1fr;opacity:1;visibility:visible;transition:grid-template-rows .38s cubic-bezier(.22,1,.36,1), opacity .3s ease .05s, visibility 0s;}
+.consent__body p{font-size:12.5px;line-height:1.55;color:var(--fg-dim);margin:0 0 8px;}
+.consent__links{font-size:12.5px;line-height:1.5;color:var(--fg-dim);margin:0;}
+.consent__doc{color:var(--fg);border-bottom:1px dashed var(--hair);}
+
+.form__foot{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap;margin-top:var(--s2);}
+.btn:disabled{opacity:.42;cursor:not-allowed;box-shadow:none;background:var(--cyan);}
+.btn[aria-disabled="true"]{opacity:.7;cursor:progress;box-shadow:none;background:var(--cyan);transform:none;}
+.form__hint{flex:1;min-width:180px;}
+.form__disclaimer{padding-top:var(--s2);border-top:1px solid var(--hair);}
+
+/* экран после отправки */
+.form-done{display:grid;gap:var(--s3);justify-items:start;}
+.form-done__title:focus{outline:none;}
+/* не дошло: узел гаснет и становится красным, как у ошибки поля */
+.form-done.is-error .form-done__node{background:#FF8A7A;box-shadow:none;animation:none;}
+.form-done__node{
+  width:12px;height:12px;border-radius:50%;background:var(--cyan);
+  box-shadow:0 0 0 0 rgba(0,194,184,.5);animation:halo-node 2s ease-out infinite;
+}
+@keyframes halo-node{ to{ box-shadow:0 0 0 18px rgba(0,194,184,0); } }
+.form-done__title{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:22px;margin:0;}
+.form-done__text{
+  width:100%;padding:var(--s3);font-family:'IBM Plex Mono',monospace;font-size:12.5px;line-height:1.6;
+  color:var(--fg);background:var(--panel);border:1px solid var(--hair);border-radius:var(--r);resize:vertical;
+}
+.form-done__actions{display:flex;align-items:center;gap:var(--s4);flex-wrap:wrap;}
+
+@media (max-width:560px){
+  .modal{width:100vw;max-width:100vw;max-height:92vh;margin:auto 0 0;}
+  .modal__card{padding:var(--s4) var(--s3) var(--s3);border-radius:var(--r) var(--r) 0 0;}
+}
+@media (prefers-reduced-motion: reduce){
+  .modal__card, .modal__wire, .form-done__node{transition:none;animation:none;}
+  .modal__card{opacity:1;transform:none;}
+  .modal__wire{width:100%;}
+}
+
+/* ============================================================
+   АДАПТИВНОСТЬ
+   ============================================================ */
+@media (min-width:901px){
+  /* сверху резервируем полосу под липкую шапку */
+  .screen{padding-top:calc(var(--padY) + 46px);}
+  /* на первом экране липкой шапки нет, но есть полосы со знаком и подсказкой:
+     резервируем ровно их высоту, чтобы длинный заголовок на них не наезжал */
+  #hero{
+    padding-top:calc(var(--padY) + 26px + var(--s3));
+    padding-bottom:calc(var(--padY) + 17px + var(--s3));
+  }
+}
+@media (min-width:1181px){
+  /* справа резервируем полосу под индикатор разделов */
+  .screen{padding-right:calc(var(--padX) + 46px);}
+  .hero__top, .hero__bottom{padding-right:calc(var(--padX) + 46px);}
+}
+@media (max-width:1180px){
+  .rail{display:none;}
+  .progress{display:block;}
+  .hero, .problem, .modes, .closing,
+  .device__head, .device__data, .compare__head, .econ__head{gap:var(--s5);}
+  /* у составных разворотов межстрочный зазор меньше колоночного */
+  .device, .compare, .econ{row-gap:var(--s3);}
+}
+@media (max-width:900px){
+  /* На узком экране snap выключается: NN/g фиксирует, что управляемая
+     прокрутка на тач-устройствах раздражает сильнее, чем помогает. */
+  .deck{scroll-snap-type:none;height:auto;overflow:visible;}
+  .screen{min-height:100vh;min-height:100svh;padding:var(--s5) var(--padX) calc(var(--s5) + 56px);}
+  .hero, .problem, .modes, .device, .compare, .closing,
+  .device__head, .device__data, .compare__head, .econ__head{grid-template-columns:minmax(0,1fr);}
+  .econ__head{row-gap:var(--s3);}
+  /* прибор складывается: ввод сверху, поля в два столбца, итог и график под ним */
+  .econ__board{grid-template-columns:minmax(0,1fr);}
+  .calc{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s3);padding:var(--s3);border-right:0;border-bottom:1px solid var(--hair);}
+  .term, .permo{grid-column:1 / -1;}
+  .permo{margin-top:0;}
+  .viz{padding:var(--s3);}
+  .device__head, .device__data{row-gap:var(--s3);}
+  /* на мобильном чертёж тянется по ширине, ограничение по высоте не нужно */
+  .device__drawing{width:100%;}
+  .device__drawing svg{width:100%;height:auto;}
+  .blueprint .bp-callouts, .blueprint .bp-leaders, .blueprint .bp-dots, .blueprint .bp-mark{display:none;}
+  .legend{display:grid;}
+  .problem__scheme{order:0;}   /* на мобильном порядок остаётся смысловым: сначала текст */
+  /* липкое действие переезжает вниз, в зону большого пальца */
+  .bar{top:auto;bottom:0;transform:translateY(100%);border-bottom:none;}
+  .bar[data-theme="dark"]{border-top:1px solid rgba(var(--quartz-rgb),0.14);}
+  .bar[data-theme="light"]{border-top:1px solid rgba(18,22,43,0.12);}
+  .bar .btn--sm{min-height:44px;}
+  .steps{grid-template-columns:minmax(0,1fr);gap:var(--s2);}
+  .cmp th, .cmp td{font-size:12.5px;padding-right:var(--s2);}
+  .cmp .own + th, .cmp .own + td{padding-left:var(--s2);}
+  .cmp tbody th{width:22%;}
+  .status div{grid-template-columns:12ch 1fr;}
+  /* на узком экране знак возвращается в поток над заголовком */
+  .hero__top{position:static;padding:0;margin-bottom:var(--s4);}
+  .hero__lede, .hero__actions{margin-bottom:var(--s4);}
+  .hero__device{order:2;}
+  .segments{grid-template-columns:repeat(2,1fr);gap:var(--s3) var(--s4);}
+  .legend{grid-template-columns:repeat(2,1fr);}
+  .mode-text{min-height:0;}
+  .hero__next{display:none;}
+  .screen--final{gap:var(--s4);}
+  .site-foot__grid{grid-template-columns:repeat(2, minmax(0,1fr));gap:var(--s4);}
+  .site-foot__bottom{grid-template-columns:minmax(0,1fr);gap:var(--s2);}
+  .site-foot__mark{justify-self:start;}
+}
+/* Подписи внутри схем масштабируются вместе с svg — на узком экране
+   поднимаем их кегль, иначе получается 6–7 px реального размера */
+@media (max-width:700px){
+  .problem__scheme text, .modes__scheme text{font-size:19px;}
+  /* «вид сверху/сбоку» на мобильном налезали на размерные подписи — прячем,
+     назначение проекций и так читается по чертежу и легенде */
+  .device__drawing text[font-size="7"]{display:none;}
+  .device__drawing text[font-size="8"]{font-size:13px;}
+  .device__drawing text[font-size="8.5"]{font-size:14px;}
+}
+@media (max-width:560px){
+  .caps{display:grid;grid-template-columns:repeat(2,1fr);}
+  .segments{grid-template-columns:minmax(0,1fr);}
+  .legend{grid-template-columns:minmax(0,1fr);}
+  .hero__actions{gap:var(--s3);}
+  .btn{width:100%;}
+  .switch{flex-direction:column;}
+  .calc{grid-template-columns:minmax(0,1fr);}
+  /* три цифры встают строками: подпись слева, значение справа */
+  .stats{grid-template-columns:minmax(0,1fr);}
+  .stat{
+    grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"label value" "sub value";
+    column-gap:var(--s2);padding:var(--s2) 0;border-left:0;border-top:1px solid var(--hair);
+  }
+  .stat:first-child{padding-top:0;border-top:0;}
+  .stat dt{grid-area:label;}
+  .stat__value{grid-area:value;align-self:center;font-size:22px;}
+  .stat__sub{grid-area:sub;}
+}
+
+/* Низкий экран (ноутбуки 720p): ужимаем пятый экран, самый плотный по контенту */
+/* на экранах ниже 900 px резервируем запас: с резервными шрифтами заголовок
+   занимает на строку больше и разворот переставал помещаться */
+/* окно ниже 900: трёхстрочный заголовок делает разворот выше экрана,
+   поэтому ужимаем межблочные зазоры и чертёж */
+@media (max-height:900px) and (min-width:901px){
+  .device__drawing svg{height:29vh;}
+  .device{row-gap:var(--s3);}
+  .device__head{gap:var(--s4);}
+  /* подвал ужимается: на резервных шрифтах он выше и выносил экран за окно */
+  .site-foot__grid{gap:var(--s3) var(--s4);}
+  .site-foot__bottom{margin-top:var(--s3);padding-top:var(--s2);}
+}
+@media (max-height:820px) and (min-width:901px){
+  .h-display{font-size:clamp(30px, 3.8vw, 48px);}
+  .h-screen{font-size:clamp(24px, 2.6vw, 34px);}
+  .bar{padding-top:var(--s1);padding-bottom:var(--s1);}
+  .bar .btn--sm{min-height:34px;}
+  .screen{padding-top:calc(var(--padY) + 34px);}
+  .steps{margin-top:var(--s3);}
+  .device{row-gap:var(--s3);}
+  .device__head, .device__data{gap:var(--s4);}
+  .device__drawing svg{height:30vh;}
+  .spec th, .spec td{padding:5px 0;}
+  .site-foot{padding-top:var(--s2);}
+  .site-foot__grid{gap:var(--s3) var(--s4);}
+  .site-foot__bottom{margin-top:var(--s3);padding-top:var(--s2);}
+  .facts{gap:var(--s2);margin-top:var(--s4);}
+  .segments{margin-top:var(--s4);padding-top:var(--s3);}
+  .calc, .viz{padding:var(--s3);}
+  .num{min-height:48px;}
+  .plot__canvas{min-height:clamp(190px,28vh,260px);}
+  .screen--final{gap:var(--s3);}
+  .final{padding-top:var(--s2);}
+}
+/* Если высоты всё равно не хватает — снап выключается, чтобы ничего не срезалось */
+@media (max-height:780px){
+  .deck{scroll-snap-type:none;}
+}
+
+/* Пользователь отключил анимацию — отключаем и snap, и плавный скролл */
+@media (prefers-reduced-motion: reduce){
+  .deck{scroll-snap-type:none;scroll-behavior:auto;}
+  *{transition:none !important;}
+  /* сигнал остаётся видимым, просто не движется */
+  .sig path, .hero-wifi > *{animation:none !important;stroke-dashoffset:0;opacity:var(--hi);}
+  .hero__device .led-core{opacity:1;}
+  .hero__device .led-halo{opacity:.25;transform:scale(.9);}
+  .bar{transition:none;}
+  .blueprint.is-in *{animation:none !important;}
+  .blueprint .bp-led, .be-halo, .econ__board .stat__node, .node-led.is-blink,
+  .hero__device .led-core, .hero__device .led-halo{animation:none !important;}
+  .node-led{opacity:.5;}
+  .econ.is-pending .stat, .econ.is-pending .plot__head, .econ.is-pending .permo{opacity:1;}
+  .econ.is-in .stat, .econ.is-in .plot__head, .econ.is-in .permo{animation:none !important;}
+  .scheme:not(.is-live) g[stroke-dasharray] > path{opacity:1;}
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#modes">Перейти к описанию продукта</a>
+
+<!-- Мини-шапка: появляется после первого экрана, несёт то же единственное
+     действие. Не навигация — навигационное меню на лендинге снижает конверсию. -->
+<header class="bar" id="bar" data-theme="dark">
+  <a class="bar__brand" href="#hero"><svg viewBox="14.8 10.8 70.4 60.4" aria-hidden="true"><circle cx="50" cy="50" r="9" fill="#00C2B8"/><circle cx="50" cy="14" r="3.2" fill="currentColor"/><circle cx="82" cy="68" r="3.2" fill="currentColor"/><circle cx="18" cy="68" r="3.2" fill="currentColor"/><line x1="50" y1="50" x2="50" y2="18" stroke="currentColor" stroke-width="2.4"/><line x1="50" y1="50" x2="79" y2="66" stroke="currentColor" stroke-width="2.4"/><line x1="50" y1="50" x2="21" y2="66" stroke="currentColor" stroke-width="2.4"/></svg><span>wexus</span></a>
+  <button class="btn btn--sm" type="button" data-request>Оставить заявку</button>
+</header>
+
+<!-- Индикатор положения: семь узлов на одной линии — тот же графический
+     язык, что у знака. -->
+<nav class="rail" id="rail" data-theme="dark" aria-label="Разделы страницы">
+  <a href="#hero" data-rail="hero"><span class="rail__label">Обзор</span><span class="rail__dot"></span></a>
+  <a href="#problem" data-rail="problem"><span class="rail__label">Проблема</span><span class="rail__dot"></span></a>
+  <a href="#modes" data-rail="modes"><span class="rail__label">Как работает</span><span class="rail__dot"></span></a>
+  <a href="#device" data-rail="device"><span class="rail__label">Устройство</span><span class="rail__dot"></span></a>
+  <a href="#compare" data-rail="compare"><span class="rail__label">Сравнение</span><span class="rail__dot"></span></a>
+  <a href="#economics" data-rail="economics"><span class="rail__label">Экономика</span><span class="rail__dot"></span></a>
+  <a href="#final" data-rail="final"><span class="rail__label">Вопросы</span><span class="rail__dot"></span></a>
+</nav>
+<div class="progress" aria-hidden="true"><span id="progressFill"></span></div>
+
+<main class="deck" id="deck">
+
+<!-- ============================================================
+     ЭКРАН 1 — HERO
+     Слева: знак, tagline как заголовок, USP одним предложением, одно действие.
+     Справа: устройство (вид сверху из брендборда, те же координаты).
+     ============================================================ -->
+<section class="screen screen--deep" id="hero" data-theme="dark">
+  <!-- знак прижат к верхней кромке экрана: верхнего меню нет, и эта полоса
+       иначе оставалась бы пустой -->
+  <div class="hero__top"><div class="wrap">
+      <div class="hero__mark">
+        <!-- viewBox обрезан по краям самого знака: иначе он визуально «висит»
+             выше строчной надписи при выравнивании по центру -->
+        <svg viewBox="14.8 10.8 70.4 60.4" role="img" aria-label="Знак WEXUS: узел с тремя подключёнными устройствами">
+          <circle cx="50" cy="50" r="9" fill="#00C2B8"/>
+          <circle cx="50" cy="14" r="3.2" fill="#EAE8DF"/>
+          <circle cx="82" cy="68" r="3.2" fill="#EAE8DF"/>
+          <circle cx="18" cy="68" r="3.2" fill="#EAE8DF"/>
+          <line x1="50" y1="50" x2="50" y2="18" stroke="#EAE8DF" stroke-width="2.4"/>
+          <line x1="50" y1="50" x2="79" y2="66" stroke="#EAE8DF" stroke-width="2.4"/>
+          <line x1="50" y1="50" x2="21" y2="66" stroke="#EAE8DF" stroke-width="2.4"/>
+        </svg>
+        <span class="hero__wordmark">wexus</span>
+      </div>
+  </div></div>
+
+  <div class="hero__bottom"><div class="wrap">
+    <div class="hero__next"><i></i> Дальше: как это работает - два режима</div>
+  </div></div>
+
+  <div class="wrap hero">
+    <div>
+
+
+      <h1 class="h-display">Удобство облачного сервиса.<br>Приватность физического хранилица.</h1>
+
+      <p class="lede hero__lede">Покупаешь один раз и получаешь собственное беспроводное хранилище с бесшовным доступом к данным в локальной сети WIFI.</p>
+
+      <div class="hero__actions">
+        <button class="btn" type="button" data-request>Оставить заявку на прототип</button>
+        <a class="link-quiet" href="#problem">Почему облако это не твоя собственность</a>
+      </div>
+      <p class="note" style="margin-top:var(--s3)">Оставьте заявку на приобретение прототипа.</p>
+
+    </div>
+
+    <div class="hero__device">
+      <div class="hero__glow" aria-hidden="true"></div>
+      <svg viewBox="88 6 214 142" role="img" aria-label="WEXUS WX-1TB, вид сверху: индикатор соединения, шкала заряда, зона Wi-Fi-антенны и гравировка">
+        <defs>
+          <!-- корпус подняли вместе с фоном: на прежних тонах тёмный край
+               корпуса оказался темнее поля и силуэт растворялся -->
+          <linearGradient id="heroTop" x1="6%" y1="0%" x2="94%" y2="100%">
+            <stop offset="0%" stop-color="#454D79"/>
+            <stop offset="38%" stop-color="#2B3257"/>
+            <stop offset="100%" stop-color="#1F2646"/>
+          </linearGradient>
+          <filter id="heroGrain" x="0%" y="0%" width="100%" height="100%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
+            <feColorMatrix type="saturate" values="0"/>
+          </filter>
+          <linearGradient id="heroBevel" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#a2aad4" stop-opacity="0.5"/>
+            <stop offset="100%" stop-color="#a2aad4" stop-opacity="0"/>
+          </linearGradient>
+          <radialGradient id="heroLed" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#00C2B8" stop-opacity="0.85"/>
+            <stop offset="100%" stop-color="#00C2B8" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+
+        <!-- корпус -->
+        <rect x="95" y="26" width="165" height="107" rx="12" fill="url(#heroTop)"/>
+        <rect x="95" y="26" width="165" height="107" rx="12" filter="url(#heroGrain)" opacity="0.03" pointer-events="none"/>
+        <rect x="95" y="26" width="165" height="14" rx="12" fill="url(#heroBevel)"/>
+        <rect x="95.4" y="26.4" width="164.2" height="106.2" rx="11.6" fill="none" stroke="#737bab" stroke-width="0.7" opacity="0.6"/>
+        <rect x="101" y="32" width="153" height="95" rx="7" fill="none" stroke="#949cca" stroke-width="0.4" opacity="0.16"/>
+
+        <!-- фактура матовой поверхности -->
+        <g stroke="#ffffff" stroke-width="0.35" opacity="0.05">
+          <line x1="107" y1="64" x2="248" y2="64"/><line x1="107" y1="72" x2="248" y2="72"/>
+          <line x1="107" y1="80" x2="248" y2="80"/><line x1="107" y1="88" x2="248" y2="88"/>
+          <line x1="107" y1="96" x2="248" y2="96"/>
+        </g>
+
+        <!-- радиопрозрачная зона антенны -->
+        <rect x="186" y="34" width="64" height="21" rx="5" fill="#2f3660" opacity="0.5"/>
+        <rect x="186" y="34" width="64" height="21" rx="5" fill="none" stroke="#00C2B8" stroke-width="0.7" stroke-dasharray="2.2 2.2" opacity="0.85"/>
+        <!-- значок радиомодуля: вспыхивает волной наружу — точка, дуга, дуга —
+             в один такт с большими дугами за корпусом -->
+        <g class="hero-wifi" stroke="#00C2B8" fill="none" stroke-width="0.8" stroke-linecap="round">
+          <circle class="wf1" cx="218" cy="50" r="1.2" fill="#00C2B8" stroke="none"/>
+          <path class="wf2" d="M 214 48 A 3.9 3.9 0 0 1 222 48"/>
+          <path class="wf3" d="M 210 46 A 8 8 0 0 1 226 46"/>
+        </g>
+
+        <!-- сигнал, уходящий за пределы корпуса: устройство раздаёт сеть -->
+        <g class="sig" fill="none" stroke="#00C2B8" stroke-linecap="round">
+          <path d="M 269.3 31.7 A 16 16 0 0 1 269.3 56.3" stroke-width="1.1" opacity="0.8"/>
+          <path d="M 277.0 22.6 A 28 28 0 0 1 277.0 65.4" stroke-width="1" opacity="0.5"/>
+          <path d="M 284.7 13.4 A 40 40 0 0 1 284.7 74.6" stroke-width="0.9" opacity="0.3"/>
+        </g>
+
+        <!-- индикатор соединения -->
+        <circle class="led-halo" cx="114" cy="46" r="7.5" fill="url(#heroLed)"/>
+        <circle class="led-core" cx="114" cy="46" r="2.7" fill="#00C2B8"/>
+
+        <!-- шкала заряда, 4 сегмента -->
+        <g>
+          <rect x="128" y="44" width="6.4" height="4.2" rx="1.8" fill="#00C2B8" opacity="0.9"/>
+          <rect x="137.5" y="44" width="6.4" height="4.2" rx="1.8" fill="#00C2B8" opacity="0.9"/>
+          <rect x="147" y="44" width="6.4" height="4.2" rx="1.8" fill="#00C2B8" opacity="0.5"/>
+          <rect x="156.5" y="44" width="6.4" height="4.2" rx="1.8" fill="#949cca" opacity="0.25"/>
+        </g>
+
+        <!-- гравировка знака и объёма -->
+        <g opacity="0.6">
+          <g transform="translate(108,105) scale(0.105)">
+            <circle cx="50" cy="50" r="9" fill="#b3bbdd"/>
+            <circle cx="50" cy="14" r="3.2" fill="#b3bbdd"/>
+            <circle cx="82" cy="68" r="3.2" fill="#b3bbdd"/>
+            <circle cx="18" cy="68" r="3.2" fill="#b3bbdd"/>
+            <line x1="50" y1="50" x2="50" y2="18" stroke="#b3bbdd" stroke-width="2.4"/>
+            <line x1="50" y1="50" x2="79" y2="66" stroke="#b3bbdd" stroke-width="2.4"/>
+            <line x1="50" y1="50" x2="21" y2="66" stroke="#b3bbdd" stroke-width="2.4"/>
+          </g>
+          <text x="122" y="112" font-family="Space Grotesk, sans-serif" font-weight="600" font-size="11.5" fill="#b3bbdd">wexus</text>
+          <text x="230" y="112" font-family="IBM Plex Mono, monospace" font-size="7.5" fill="#b3bbdd" opacity="0.75">1TB</text>
+        </g>
+      </svg>
+      <p class="mono">WX–1TB prototype / rev 01 / 96 x 72 × 9 мм</p>
+      <p class="mono hero__status">Первый прототип на стадии разработки. Следите за проектом в соц. сетях Wexus</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     ЭКРАН 2 — ПРОБЛЕМА
+     Одна мысль: облако не принадлежит тебе. Схема вместо описания,
+     внизу — чья это проблема на практике.
+     ============================================================ -->
+<section class="screen screen--paper" id="problem" data-theme="light">
+  <div class="wrap">
+    <div class="problem">
+      <div>
+        <h2 class="h-screen">Облако не продаётся. Оно сдаётся в аренду.</h2>
+        <p class="lede">Пока платишь — доступ есть. Перестал платить или пропал интернет — доступа нет. Ты не владеешь своими файлами.</p>
+
+        <ul class="facts">
+          <li><i></i><span><b>Подписочная кабала.</b> Плата взимается столько, сколько нужны файлы, — а они нужны годами.</span></li>
+          <li><i></i><span><b>Объём хранилища ограничен тарифом.</b> Кончилось место — покупай тариф дороже, и ещё дороже, и ещё...</span></li>
+          <li><i></i><span><b>Никакого контроля за данными.</b> Условия хранения и доступа определяет провайдер, а не ты.</span></li>
+          <li><i></i><span><b>Нет интернета — нет файлов.</b> В поезде, на съёмке за городом, при замедлении сети доступ пропадает целиком.</span></li>
+        </ul>
+      </div>
+
+      <div class="problem__scheme">
+        <svg viewBox="0 0 480 322" role="img" aria-label="Схема: твои устройства обращаются к чужому дата-центру через интернет; связь может прерваться, а платёж идёт каждый месяц">
+          <!-- твои устройства -->
+          <g fill="none" stroke="#12162B" stroke-width="1.1" opacity="0.75">
+            <rect x="20" y="46" width="92" height="56" rx="5"/>
+            <rect x="25" y="51" width="82" height="46" rx="2" opacity="0.5"/>
+            <line x1="12" y1="107" x2="120" y2="107" stroke-width="1.1"/>
+            <rect x="42" y="132" width="44" height="68" rx="7"/>
+            <rect x="47" y="139" width="34" height="54" rx="2" opacity="0.5"/>
+            <rect x="26" y="230" width="80" height="58" rx="6"/>
+            <rect x="34" y="236" width="66" height="46" rx="2" opacity="0.5"/>
+          </g>
+          <circle cx="30" cy="259" r="1.6" fill="#12162B" opacity="0.5"/>
+          <text x="20" y="34" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="#12162B" opacity="0.8">твои устройства</text>
+
+          <!-- сведение в один канал -->
+          <g stroke="#12162B" stroke-width="1" opacity="0.45" fill="none">
+            <path d="M 112 74 C 145 74, 150 160, 178 160"/>
+            <path d="M 86 166 L 178 161"/>
+            <path d="M 106 259 C 145 259, 150 162, 178 162"/>
+          </g>
+          <circle cx="178" cy="161" r="3.4" fill="#12162B" opacity="0.6"/>
+
+          <!-- канал до чужого сервера: пунктир с разрывом -->
+          <g stroke="#12162B" stroke-width="1.2" opacity="0.5">
+            <line x1="182" y1="161" x2="232" y2="161" stroke-dasharray="4 4"/>
+            <line x1="262" y1="161" x2="308" y2="161" stroke-dasharray="4 4"/>
+            <line x1="240" y1="150" x2="254" y2="172"/>
+            <line x1="254" y1="150" x2="240" y2="172"/>
+          </g>
+          <text x="196" y="192" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="#12162B" opacity="0.8">интернет</text>
+
+          <!-- чужой дата-центр -->
+          <g fill="none" stroke="#12162B" stroke-width="1.1" opacity="0.75">
+            <rect x="312" y="96" width="146" height="130" rx="10"/>
+            <line x1="330" y1="130" x2="440" y2="130"/>
+            <line x1="330" y1="161" x2="440" y2="161"/>
+            <line x1="330" y1="192" x2="440" y2="192"/>
+          </g>
+          <g fill="#12162B" opacity="0.35">
+            <circle cx="336" cy="115" r="3"/><circle cx="336" cy="146" r="3"/><circle cx="336" cy="177" r="3"/>
+          </g>
+          <text x="458" y="84" text-anchor="end" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="#12162B" opacity="0.8">чужой дата-центр</text>
+
+          <!-- платёж каждый месяц: двенадцать отметок = год аренды -->
+          <g fill="#12162B" opacity="0.32">
+            <rect x="312" y="262" width="6" height="16" rx="1"/><rect x="325" y="262" width="6" height="16" rx="1"/>
+            <rect x="338" y="262" width="6" height="16" rx="1"/><rect x="351" y="262" width="6" height="16" rx="1"/>
+            <rect x="364" y="262" width="6" height="16" rx="1"/><rect x="377" y="262" width="6" height="16" rx="1"/>
+            <rect x="390" y="262" width="6" height="16" rx="1"/><rect x="403" y="262" width="6" height="16" rx="1"/>
+            <rect x="416" y="262" width="6" height="16" rx="1"/><rect x="429" y="262" width="6" height="16" rx="1"/>
+            <rect x="442" y="262" width="6" height="16" rx="1"/><rect x="455" y="262" width="6" height="16" rx="1"/>
+          </g>
+          <text x="458" y="296" text-anchor="end" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="#12162B" opacity="0.8">платежи каждый месяц</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- чья это проблема: сегменты строками, как в брендборде -->
+    <div class="segments">
+	  <div><b>Малые команды</b>Доступ нужен нескольким людям сразу, а место на всех заканчивается быстро.</div>
+      <div><b>Фотографы и видеографы</b>Отснятое нужно посмотреть прямо на площадке, где сети обычно нет.</div>
+      <div><b>Путешественники</b>Сеть чужая, нестабильная и небезопасная — данные не должны быть скомпроментированы.</div>
+	  <div><b>Студенты</b>Проекты весят сотни гигабайт, а подписка — фиксированная статья расходов каждый месяц.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     ЭКРАН 3 — ДВА РЕЖИМА
+     Главный смысловой блок. Схема с переключателем: один и тот же
+     набор узлов, меняется только источник сети.
+     ============================================================ -->
+<section class="screen screen--deep" id="modes" data-theme="dark">
+  <div class="wrap modes">
+    <div>
+      <h2 class="h-screen">Работает там, где не работает облако</h2>
+      <p class="lede">Одно устройство, два способа подключения. Главный — автономный: без роутера, без интернета, без учётных записей, <strong>без доступа извне.</strong></p>
+
+      <div class="switch" role="tablist" aria-label="Режимы работы">
+        <span class="switch__marker" aria-hidden="true"></span>
+        <button type="button" role="tab" id="tab-solo" aria-controls="panel-solo" aria-selected="true" data-mode="solo">Без интернета</button>
+        <button type="button" role="tab" id="tab-local" aria-controls="panel-local" aria-selected="false" data-mode="local">В домашней сети</button>
+      </div>
+
+      <div class="mode-text">
+        <div class="is-on" id="panel-solo" role="tabpanel" aria-labelledby="tab-solo">
+          <p class="lede">Основной режим. Устройство работает от собственного аккумулятора и поднимает свою сеть — файлы открываются там, где сети нет вообще: в поезде, на съёмке, в горах.</p>
+        </div>
+        <div id="panel-local" role="tabpanel" aria-labelledby="tab-local">
+          <p class="lede">Дополнительный режим. Дома или в офисе устройство подключается к обычному Wi-Fi: хранилище видят все устройства в этой сети, а при наличии интернета доступ появляется в любой точке мира.</p>
+        </div>
+      </div>
+
+      <p class="note">Максимальное число одновременных подключений — 4.</p>
+
+      <!-- порядок действий, а не список преимуществ -->
+      <div class="steps">
+        <div><b>1</b><span>Зарядить по USB-C</span></div>
+        <div><b>2</b><span>Включить кнопкой</span></div>
+        <div><b>3</b><span>Подключиться по протоколу Wi-Fi Direct</span></div>
+      </div>
+    </div>
+
+    <div class="modes__scheme">
+      <div class="scheme is-solo" id="scheme">
+        <svg viewBox="0 -18 640 368" role="img" aria-label="Схема подключения: в домашней сети устройства соединяются через роутер, в автономном режиме — напрямую с WEXUS">
+          <!-- ——— общие узлы: WEXUS слева, три клиента справа ——— -->
+          <!-- ноутбук -->
+          <g fill="none" stroke="#EAE8DF" stroke-width="1.1" opacity="0.8">
+            <rect x="470" y="26" width="130" height="78" rx="5"/>
+            <rect x="477" y="33" width="116" height="64" rx="2" opacity="0.45"/>
+            <rect x="458" y="108" width="154" height="6" rx="3"/>
+            <!-- телефон -->
+            <rect x="508" y="138" width="54" height="92" rx="9"/>
+            <rect x="514" y="147" width="42" height="74" rx="2" opacity="0.45"/>
+            <!-- планшет -->
+            <rect x="470" y="262" width="130" height="72" rx="6"/>
+            <rect x="480" y="269" width="112" height="58" rx="2" opacity="0.45"/>
+          </g>
+          <circle cx="474" cy="298" r="1.8" fill="#EAE8DF" opacity="0.5"/>
+          <!-- сигнальные точки: клиент подтверждает подключение -->
+          <circle id="led-c0" class="node-led" cx="578" cy="47" r="3.2" fill="#00C2B8"/>
+          <circle id="led-c1" class="node-led" cx="543" cy="160" r="3.2" fill="#00C2B8"/>
+          <circle id="led-c2" class="node-led" cx="578" cy="283" r="3.2" fill="#00C2B8"/>
+          <text x="600" y="8" text-anchor="end" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="#EAE8DF" opacity="0.72">до 4-х устройств сразу</text>
+
+          <!-- корпус WEXUS -->
+          <rect x="40" y="148" width="176" height="64" rx="12" fill="#12162B" stroke="#737bab" stroke-width="0.8"/>
+          <circle cx="62" cy="168" r="7" fill="#00C2B8" opacity="0.2"/>
+          <circle id="led-wexus" class="node-led" style="--idle:1" cx="62" cy="168" r="2.6" fill="#00C2B8"/>
+          <g>
+            <rect x="78" y="166" width="7" height="4.4" rx="1.8" fill="#00C2B8" opacity="0.9"/>
+            <rect x="88" y="166" width="7" height="4.4" rx="1.8" fill="#00C2B8" opacity="0.9"/>
+            <rect x="98" y="166" width="7" height="4.4" rx="1.8" fill="#00C2B8" opacity="0.5"/>
+            <rect x="108" y="166" width="7" height="4.4" rx="1.8" fill="#949cca" opacity="0.3"/>
+          </g>
+          <text x="56" y="199" font-family="Space Grotesk, sans-serif" font-weight="600" font-size="15" fill="#EAE8DF">wexus</text>
+          <text x="140" y="199" font-family="IBM Plex Mono, monospace" font-size="10" fill="#EAE8DF" opacity="0.6">1TB</text>
+
+          <!-- ——— режим 1: через существующий Wi-Fi ——— -->
+          <g data-mode="local">
+            <rect x="282" y="40" width="116" height="48" rx="8" fill="none" stroke="#EAE8DF" stroke-width="1.1" opacity="0.8"/>
+            <g stroke="#EAE8DF" stroke-width="1.1" opacity="0.8" fill="none" stroke-linecap="round">
+              <line x1="308" y1="40" x2="300" y2="20"/>
+              <line x1="372" y1="40" x2="380" y2="20"/>
+            </g>
+            <circle id="led-router" class="node-led" cx="340" cy="64" r="3.6" fill="#00C2B8"/>
+            <text x="282" y="108" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="#EAE8DF" opacity="0.72">твой роутер</text>
+
+            <g stroke="#00C2B8" stroke-width="1.4" fill="none" stroke-dasharray="5 5" opacity="0.9" stroke-linecap="round">
+              <path data-from="led-wexus" data-to="led-router" d="M 225 172 C 254 168, 262 118, 273 82"/>
+              <path data-from="led-router" data-to="led-c0" d="M 407 54 C 426 40, 444 42, 461 54"/>
+              <path data-from="led-router" data-to="led-c1" d="M 407 74 C 436 96, 444 152, 499 178"/>
+              <path data-from="led-router" data-to="led-c2" d="M 368 95 C 378 165, 404 252, 461 288"/>
+            </g>
+            <text x="40" y="262" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="#EAE8DF" opacity="0.72">все в одной сети, стационарное питание</text>
+          </g>
+
+          <!-- ——— режим 2: собственная сеть устройства ——— -->
+          <g data-mode="solo">
+            <g opacity="0.2">
+              <rect x="282" y="40" width="116" height="48" rx="8" fill="none" stroke="#EAE8DF" stroke-width="1.1"/>
+              <g stroke="#EAE8DF" stroke-width="1.1" fill="none" stroke-linecap="round">
+                <line x1="308" y1="40" x2="300" y2="20"/>
+                <line x1="372" y1="40" x2="380" y2="20"/>
+                <line x1="290" y1="46" x2="390" y2="82"/>
+                <line x1="390" y1="46" x2="290" y2="82"/>
+              </g>
+            </g>
+            <text x="282" y="108" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="#EAE8DF" opacity="0.45">твой роутер</text>
+
+            <!-- собственная сеть: волны от корпуса -->
+            <g stroke="#00C2B8" fill="none" stroke-width="1.1" opacity="0.5" stroke-linecap="round">
+              <path d="M 232 158 A 26 26 0 0 1 232 202"/>
+              <path d="M 246 146 A 42 42 0 0 1 246 214"/>
+              <path d="M 260 134 A 58 58 0 0 1 260 226"/>
+            </g>
+            <g stroke="#00C2B8" stroke-width="1.4" fill="none" stroke-dasharray="5 5" opacity="0.9" stroke-linecap="round">
+              <path data-from="led-wexus" data-to="led-c0" d="M 292 158 C 386 152, 426 92, 461 68"/>
+              <path data-from="led-wexus" data-to="led-c1" d="M 298 181 C 360 182, 430 182, 499 182"/>
+              <path data-from="led-wexus" data-to="led-c2" d="M 292 200 C 356 244, 410 282, 461 292"/>
+            </g>
+            <text x="40" y="262" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="#EAE8DF" opacity="0.72">своя сеть, питание от батареи</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     ЭКРАН 4 — УСТРОЙСТВО
+     Чертёж с выносками A–F взят из брендборда без изменений.
+     Характеристики — моноширинным: здесь это настоящие данные.
+     ============================================================ -->
+<section class="screen screen--quartz" id="device" data-theme="light">
+  <div class="wrap device">
+    <!-- шапка разворота: заголовок и пояснение разнесены по ширине -->
+    <div class="device__head">
+      <h2 class="h-screen">Одно устройство: накопитель, батарея и точка доступа</h2>
+      <p class="lede">Корпус размером с кардхолдер. Внутри хранилище данных, аккумулятор и несколько Wi-Fi-модулей, снаружи — индикатор соединения, шкала заряда и многофункциональный порт Type-C.</p>
+    </div>
+
+    <div class="device__drawing">
+      <svg class="blueprint" viewBox="0 0 1000 384" role="img" aria-label="Чертёж WEXUS: вид сверху и вид сбоку с обозначением индикатора соединения, шкалы заряда, зоны Wi-Fi-антенны, гравировки, порта USB-C и кнопки питания">
+        <defs>
+          <linearGradient id="bpTop" x1="8%" y1="0%" x2="92%" y2="100%">
+            <stop offset="0%" stop-color="#404973"/>
+            <stop offset="42%" stop-color="#252c4c"/>
+            <stop offset="100%" stop-color="#12172e"/>
+          </linearGradient>
+          <linearGradient id="bpSide" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#5a628e"/>
+            <stop offset="18%" stop-color="#2b3257"/>
+            <stop offset="72%" stop-color="#161b34"/>
+            <stop offset="100%" stop-color="#3a4166"/>
+          </linearGradient>
+          <linearGradient id="bpBevel" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#aab2da" stop-opacity="0.55"/>
+            <stop offset="100%" stop-color="#aab2da" stop-opacity="0"/>
+          </linearGradient>
+          <radialGradient id="bpLed" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#00C2B8" stop-opacity="0.85"/>
+            <stop offset="100%" stop-color="#00C2B8" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+
+        <!-- осевая линия макета: единственная структурная линия чертежа -->
+        <line class="bp-axis" x1="500" y1="14" x2="500" y2="318" stroke="#12162B" stroke-width="0.7"
+              stroke-dasharray="14 5 2 5" opacity="0.18"/>
+
+        <!-- ВИД СВЕРХУ -->
+        <ellipse cx="500" cy="300" rx="188" ry="9" fill="#12162B" opacity="0.07"/>
+        <g class="bp-body">
+          <rect x="310" y="44" width="380" height="244" rx="24" fill="url(#bpTop)"/>
+          <rect x="310" y="44" width="380" height="30" rx="24" fill="url(#bpBevel)"/>
+          <rect x="310.5" y="44.5" width="379" height="243" rx="23.5" fill="none" stroke="#7d85b5" stroke-width="0.9" opacity="0.55"/>
+          <rect x="322" y="56" width="356" height="220" rx="15" fill="none" stroke="#9aa2ce" stroke-width="0.5" opacity="0.15"/>
+          <g stroke="#ffffff" stroke-width="0.5" opacity="0.04">
+            <line x1="330" y1="130" x2="670" y2="130"/><line x1="330" y1="150" x2="670" y2="150"/>
+            <line x1="330" y1="170" x2="670" y2="170"/><line x1="330" y1="190" x2="670" y2="190"/>
+            <line x1="330" y1="210" x2="670" y2="210"/>
+          </g>
+        </g>
+
+        <!-- радиопрозрачная зона антенны -->
+        <g class="bp-ant">
+          <rect x="556" y="66" width="108" height="46" rx="12" fill="#2f3660" opacity="0.45"/>
+          <rect x="556" y="66" width="108" height="46" rx="12" fill="none" stroke="#00C2B8" stroke-width="0.9" stroke-dasharray="3.5 3.5" opacity="0.85"/>
+          <g stroke="#00C2B8" fill="none" stroke-width="1.3" opacity="0.65" stroke-linecap="round">
+            <path d="M 596 96 A 14 14 0 0 1 624 96"/>
+            <path d="M 603 101 A 7 7 0 0 1 617 101"/>
+          </g>
+          <circle cx="610" cy="105" r="2" fill="#00C2B8" opacity="0.8"/>
+        </g>
+
+        <!-- индикатор соединения и шкала заряда -->
+        <circle class="bp-glow" cx="352" cy="88" r="17" fill="url(#bpLed)"/>
+        <circle class="bp-led" cx="352" cy="88" r="5.5" fill="#00C2B8"/>
+        <g class="bp-batt">
+          <rect x="378" y="83.5" width="15" height="9" rx="4" fill="#00C2B8" opacity="0.92"/>
+          <rect x="400" y="83.5" width="15" height="9" rx="4" fill="#00C2B8" opacity="0.92"/>
+          <rect x="422" y="83.5" width="15" height="9" rx="4" fill="#00C2B8" opacity="0.5"/>
+          <rect x="444" y="83.5" width="15" height="9" rx="4" fill="#9aa2ce" opacity="0.26"/>
+        </g>
+
+        <!-- гравировка знака и объёма -->
+        <g class="bp-engrave" opacity="0.62">
+          <g transform="translate(330,236) scale(0.26)">
+            <circle cx="50" cy="50" r="9" fill="#b7bfe0"/>
+            <circle cx="50" cy="14" r="3.2" fill="#b7bfe0"/>
+            <circle cx="82" cy="68" r="3.2" fill="#b7bfe0"/>
+            <circle cx="18" cy="68" r="3.2" fill="#b7bfe0"/>
+            <line x1="50" y1="50" x2="50" y2="18" stroke="#b7bfe0" stroke-width="2.4"/>
+            <line x1="50" y1="50" x2="79" y2="66" stroke="#b7bfe0" stroke-width="2.4"/>
+            <line x1="50" y1="50" x2="21" y2="66" stroke="#b7bfe0" stroke-width="2.4"/>
+          </g>
+          <text x="364" y="258" font-family="Space Grotesk, sans-serif" font-weight="600" font-size="24" fill="#b7bfe0">wexus</text>
+          <text id="capEngrave" x="664" y="258" text-anchor="end" font-family="IBM Plex Mono, monospace" font-size="16" fill="#b7bfe0" opacity="0.8">1TB</text>
+        </g>
+
+        <!-- ВИД СБОКУ -->
+        <g class="bp-side">
+          <rect x="310" y="326" width="380" height="28" rx="14" fill="url(#bpSide)"/>
+          <rect x="310.5" y="326.5" width="379" height="27" rx="13.5" fill="none" stroke="#7d85b5" stroke-width="0.8" opacity="0.5"/>
+          <line x1="324" y1="331.5" x2="676" y2="331.5" stroke="#aab2da" stroke-width="0.6" opacity="0.3"/>
+          <line x1="324" y1="340" x2="676" y2="340" stroke="#0b0e1a" stroke-width="0.6" opacity="0.4"/>
+          <rect x="648" y="333" width="28" height="15" rx="7.5" fill="#05060c"/>
+          <rect x="648" y="333" width="28" height="15" rx="7.5" fill="none" stroke="#7d85b5" stroke-width="0.5" opacity="0.5"/>
+          <rect x="336" y="336" width="24" height="9" rx="4.5" fill="#0d1124" opacity="0.92"/>
+        </g>
+
+        <!-- ВЫНОСКИ: подпись стоит рядом с элементом, без буквенных кодов -->
+        <g class="bp-leaders" stroke="#12162B" stroke-width="0.8" fill="none" opacity="0.5">
+          <path d="M 286 88 H 352"/>
+          <path d="M 286 148 H 372 L 418 94"/>
+          <path d="M 286 252 H 330"/>
+          <path d="M 714 88 H 664"/>
+          <path d="M 714 340 H 676"/>
+          <path d="M 286 340 H 348"/>
+        </g>
+        <g class="bp-dots" fill="#12162B">
+          <circle cx="352" cy="88" r="2.6" opacity="0.55"/>
+          <circle cx="418" cy="94" r="2.6" opacity="0.55"/>
+          <circle cx="330" cy="252" r="2.6" opacity="0.55"/>
+          <circle cx="664" cy="88" r="2.6" opacity="0.55"/>
+          <circle cx="676" cy="340" r="2.6" opacity="0.55"/>
+          <circle cx="348" cy="340" r="2.6" opacity="0.55"/>
+        </g>
+        <g class="bp-callouts" font-family="IBM Plex Sans, sans-serif" font-size="15" fill="#12162B">
+          <text x="274" y="92" text-anchor="end">Индикатор соединения</text>
+          <text x="274" y="152" text-anchor="end">Шкала заряда, 4 сегмента</text>
+          <text x="274" y="256" text-anchor="end">Гравировка логотипа и объёма</text>
+          <text x="726" y="92">Радиопрозрачная зона Wi-Fi</text>
+          <text x="726" y="344">Универсальный порт Type-C</text>
+          <text x="274" y="344" text-anchor="end">Кнопка питания на торце</text>
+        </g>
+
+        <!-- единственный размер на чертеже: остальное — в таблице -->
+        <g class="bp-dim" stroke="#12162B" stroke-width="0.7" opacity="0.4">
+          <line x1="310" y1="377" x2="690" y2="377"/>
+          <line x1="310" y1="372" x2="310" y2="382"/>
+          <line x1="690" y1="372" x2="690" y2="382"/>
+        </g>
+        <text class="bp-dim-label" x="500" y="371" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="13" fill="#12162B" opacity="0.55">96 мм</text>
+      </svg>
+
+      <!-- на узком экране подписи внутри чертежа не читаются: там их место занимает этот список -->
+      <div class="legend" aria-hidden="false">
+        <div><i></i>Индикатор соединения</div>
+        <div><i></i>Шкала заряда, 4 сегмента</div>
+        <div><i></i>Радиопрозрачная зона Wi-Fi</div>
+        <div><i></i>Гравировка знака и объёма</div>
+        <div><i></i>Универсальный порт Type-C</div>
+        <div><i></i>Кнопка питания на торце</div>
+      </div>
+    </div>
+
+    <div class="device__data">
+      <div>
+      <!-- выбор объёма меняет гравировку на чертеже и строку модели в таблице -->
+      <div class="caps" role="group" aria-label="Объём накопителя">
+        <span class="caps__marker" aria-hidden="true"></span>
+        <button type="button" data-cap="256GB" data-model="WX–256GB / в плане" aria-pressed="false">256 GB</button>
+        <button type="button" data-cap="512GB" data-model="WX–512GB / в плане" aria-pressed="false">512 GB</button>
+        <button type="button" data-cap="1TB" data-model="WX–1TB / rev 01" aria-pressed="true">1 TB</button>
+        <button type="button" data-cap="2TB" data-model="WX–2TB / в плане" aria-pressed="false">2 TB</button>
+      </div>
+      <p class="note">Версия с 1ТБ памяти выйдет весной 2027, другие версии ожидаются к концу 2027.</p>
+      </div>
+
+      <table class="spec">
+        <caption class="sr-only">Технические характеристики прототипа</caption>
+        <tbody>
+          <tr><th scope="row">Модель, ревизия</th><td id="specModel">WX–1TB / rev 01</td></tr>
+          <tr><th scope="row">Габариты</th><td>96 х 72 × 9 мм</td></tr>
+          <tr><th scope="row">Интерфейс</th><td>USB Type-C Thunderbolt 4.0</td></tr>
+          <tr><th scope="row">Одновременных подключений</th><td data-tbd>4</td></tr>
+          <tr><th scope="row">Время автономной работы</th><td data-tbd>До 5 дней в режиме ожидания, до 10 часов активной работы</td></tr>
+          <tr><th scope="row">Скорость передачи</th><td data-tbd>До 400Мб/с</td></tr>
+          <tr><th scope="row">Шифрование</th><td data-tbd>Финальная технология шифрования данных уточняется</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+</div>
+</section>
+
+
+<!-- ============================================================
+     ЭКРАН 5 — СРАВНЕНИЕ С АЛЬТЕРНАТИВАМИ
+     Отвечает на главный вопрос «зачем, если есть облако и есть SSD».
+     Последняя строка — там, где продукт проигрывает. Без неё таблица
+     выглядит рекламой, а не сравнением.
+     ============================================================ -->
+<section class="screen screen--deep" id="compare" data-theme="dark">
+  <div class="wrap compare">
+    <div class="compare__head">
+      <h2 class="h-screen">Не облако и не флешка — принципиально новое устройство</h2>
+      <p class="lede">Продукт занимает место между двумя привычными вариантами и берёт часть свойств у каждого. Сравнение по свойствам, а не по цифрам: цены и скорости зависят от конкретных моделей и тарифов.</p>
+    </div>
+
+    <table class="cmp">
+      <caption class="sr-only">Сравнение WEXUS, облачного хранилища и традиционного внешнего SSD</caption>
+      <thead>
+        <tr>
+          <th scope="col"><span class="sr-only">Свойство</span></th>
+          <th scope="col" class="own"><span class="own-node" aria-hidden="true"></span>WEXUS</th>
+          <th scope="col">Облако</th>
+          <th scope="col">Внешний SSD</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">Как платишь</th><td class="own">один раз при покупке</td><td>каждый месяц, пока нужны файлы</td><td>один раз при покупке</td></tr>
+        <tr><th scope="row">Где физически лежат данные</th><td class="own">у тебя</td><td>на серверах провайдера</td><td>у тебя</td></tr>
+        <tr><th scope="row">Доступ без интернета</th><td class="own">есть, по проводной и беспроводной сети</td><td>нет</td><td>есть, но только по кабелю</td></tr>
+        <tr><th scope="row">Несколько устройств сразу</th><td class="own">да, по Wi-Fi</td><td>да</td><td>нет, по одному</td></tr>
+        <tr><th scope="row">Объём</th><td class="own">фиксирован при покупке</td><td>растёт вместе с тарифом</td><td>фиксирован при покупке</td></tr>
+        <tr><th scope="row">Если носитель потерян или сломан</th><td class="own">данные теряются, нужна вторая копия</td><td>доступ к данным пропадает</td><td>данные теряются</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================
+     ЭКРАН 6 — ЭКОНОМИКА ВЛАДЕНИЯ
+     Цифр по цене нет, поэтому считает пользователь: свой тариф и
+     свою гипотезу цены. Никаких выдуманных «экономий до 70%».
+     ============================================================ -->
+<section class="screen screen--quartz" id="economics" data-theme="light">
+  <div class="wrap econ">
+    <div class="econ__head">
+      <h2 class="h-screen">Аренда тратит бюджет вечно. Покупка&nbsp;— это инвестиция.</h2>
+      <p class="lede">Цена версий ещё не определена — это открытый вопрос проекта. Поэтому цифры подставляешь ты: смоделируй свой тариф и свою гипотезу цены.</p>
+    </div>
+
+    <div class="econ__board">
+      <!-- ввод: две цифры пользователя -->
+      <div class="calc">
+        <div class="calc__field">
+          <label class="calc__label" for="fee">Платишь за облако сейчас</label>
+          <div class="num">
+            <input type="number" id="fee" value="299" min="0" max="99999" step="10" inputmode="numeric" aria-describedby="feeHint">
+            <label class="num__unit" for="fee">₽ в месяц</label>
+            <button class="num__btn" type="button" data-for="fee" data-dir="-1" aria-label="Уменьшить тариф"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h8"/></svg></button>
+            <button class="num__btn" type="button" data-for="fee" data-dir="1" aria-label="Увеличить тариф"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h8M6 2v8"/></svg></button>
+          </div>
+          <p class="calc__hint" id="feeHint">сумма, которая списывается каждый месяц</p>
+        </div>
+        <div class="calc__field">
+          <label class="calc__label" for="price">Цена WEXUS</label>
+          <div class="num">
+            <input type="number" id="price" value="7990" min="0" max="999999" step="500" inputmode="numeric" aria-describedby="priceHint">
+            <label class="num__unit" for="price">₽ разово</label>
+            <button class="num__btn" type="button" data-for="price" data-dir="-1" aria-label="Уменьшить цену"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h8"/></svg></button>
+            <button class="num__btn" type="button" data-for="price" data-dir="1" aria-label="Увеличить цену"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h8M6 2v8"/></svg></button>
+          </div>
+          <p class="calc__hint" id="priceHint">подставь ту, которую считаешь реальной</p>
+        </div>
+        <!-- срок задаёт сам пользователь: окупаемость от него не зависит, а итог — зависит -->
+        <fieldset class="term" aria-describedby="termHint">
+          <legend class="calc__label">Сколько лет будешь пользоваться</legend>
+          <div class="term__opts">
+            <label><input type="radio" name="term" value="1"><span>1<i class="sr-only"> год</i></span></label>
+            <label><input type="radio" name="term" value="2"><span>2<i class="sr-only"> года</i></span></label>
+            <label><input type="radio" name="term" value="3"><span>3<i class="sr-only"> года</i></span></label>
+            <label><input type="radio" name="term" value="5" checked><span>5<i class="sr-only"> лет</i></span></label>
+            <label><input type="radio" name="term" value="7"><span>7<i class="sr-only"> лет</i></span></label>
+            <label><input type="radio" name="term" value="10"><span>10<i class="sr-only"> лет</i></span></label>
+          </div>
+          <p class="calc__hint" id="termHint">накопитель в среднем служит 10&nbsp;лет</p>
+        </fieldset>
+
+        <!-- месяц владения: подписка против цены, разделённой на выбранный срок -->
+        <div class="permo">
+          <p class="calc__label">В пересчёте на месяц</p>
+          <span class="permo__name">подписка</span><i class="permo__bar"><span id="pmSubBar" style="width:100%"></span></i><b id="pmSub">299 ₽</b>
+          <span class="permo__name">WEXUS</span><i class="permo__bar permo__bar--own"><span id="pmOwnBar" style="width:44.5%"></span></i><b id="pmOwn">133 ₽</b>
+        </div>
+      </div>
+
+      <!-- итог: три цифры и график -->
+      <div class="viz">
+        <dl class="stats">
+          <div class="stat">
+            <dt>Подписка за <span id="stHorizon">5 лет</span></dt>
+            <dd class="stat__value" id="stTotal">17 940 ₽</dd>
+            <dd class="stat__sub" id="stTotalSub">299 ₽ × 60 мес</dd>
+          </div>
+          <div class="stat">
+            <dt>Окупаемость</dt>
+            <dd class="stat__value"><i class="stat__node" aria-hidden="true"></i><span id="stBe">27-й месяц</span></dd>
+            <dd class="stat__sub" id="stBeSub">через 2 года 3 месяца</dd>
+          </div>
+          <div class="stat">
+            <dt id="stSaveLabel">Экономия за 5 лет</dt>
+            <dd class="stat__value" id="stSave">9 950 ₽</dd>
+            <dd class="stat__sub" id="stSaveSub">остаётся у тебя</dd>
+          </div>
+        </dl>
+        <p class="sr-only" id="result" aria-live="polite"></p>
+
+        <figure class="plot">
+          <div class="plot__head">
+            <ul class="plot__legend">
+              <li><i class="key key--sub"></i>подписка</li>
+              <li><i class="key key--own"></i>WEXUS, один платёж</li>
+              <li><i class="key key--wash"></i>экономия</li>
+            </ul>
+          </div>
+          <div class="plot__canvas" id="plotCanvas">
+            <svg id="chart" role="img" tabindex="0" aria-labelledby="chartTitle" aria-describedby="result">
+              <title id="chartTitle">График накопленных расходов: подписка против разовой покупки. С клавиатуры: стрелки влево и вправо — по месяцам, Shift со стрелкой — по годам.</title>
+              <g id="chBase"></g>
+              <g id="chHover"></g>
+            </svg>
+            <div class="tip" id="chartTip" aria-hidden="true" hidden>
+              <p class="tip__title" id="tipTitle"></p>
+              <div class="tip__row"><i class="key key--sub"></i><span>подписка</span><b id="tipSub"></b></div>
+              <div class="tip__row"><i class="key key--own"></i><span>WEXUS</span><b id="tipOwn"></b></div>
+              <div class="tip__row tip__row--diff"><i></i><span id="tipDiffLabel"></span><b id="tipDiff"></b></div>
+            </div>
+          </div>
+          <figcaption class="note">Проведи по графику — он покажет расходы на любой месяц выбранного срока.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </div>
+
+</section>
+
+<!-- ============================================================
+     ЭКРАН 7 — ВОЗРАЖЕНИЯ, СТАТУС ПРОЕКТА, ФИНАЛЬНЫЙ CTA
+     Вместо отзывов и логотипов, которых у проекта нет, — честный
+     статус: что сделано, а что нет. Это работает как элемент доверия
+     и заодно снимает вопрос «а это уже продаётся?».
+     ============================================================ -->
+<section class="screen screen--deep screen--final" id="final" data-theme="dark">
+  <div class="wrap closing">
+    <div>
+      <h2 class="h-screen">Часто задаваемые вопросы</h2>
+
+      <div class="status">
+        <div><span>Стадия проекта</span><b>готовим прототип к релизу весной 2027</b></div>
+        <div><span>Как купить</span><b>старт предзаказов ожидаем к концу 2026</b></div>
+        <div><span>Как стать частью проекта</span><b>оставьте заявку на альфа версию</b></div>
+      </div>
+
+      <p class="lede" style="color:var(--fg)">Заинтересовал проект? Получи свой прототип WX-1TB</p>
+      <div class="hero__actions" style="margin-top:var(--s3)">
+        <button class="btn" type="button" data-request>Оставить заявку на прототип</button>
+      </div>
+      <p class="note" style="margin-top:var(--s2)"></p>
+    </div>
+
+    <div class="faq" id="faq">
+      <div class="faq__item">
+        <button class="faq__q" type="button" id="faq-q1" aria-expanded="false" aria-controls="faq-a1">
+          <span class="faq__node" aria-hidden="true"></span>
+          <span class="faq__label">Нужен ли интернет?</span>
+          <svg class="faq__sign" viewBox="0 0 16 16" aria-hidden="true"><line class="h" x1="2.5" y1="8" x2="13.5" y2="8"/><line class="v" x1="8" y1="2.5" x2="8" y2="13.5"/></svg>
+        </button>
+        <div class="faq__a" id="faq-a1" role="region" aria-labelledby="faq-q1">
+          <div><p>Нет. В автономном режиме устройство поднимает собственную сеть, и файлы открываются напрямую. Интернет нужен, только если ты сам захочешь.</p></div>
+        </div>
+      </div>
+      <div class="faq__item">
+        <button class="faq__q" type="button" id="faq-q2" aria-expanded="false" aria-controls="faq-a2">
+          <span class="faq__node" aria-hidden="true"></span>
+          <span class="faq__label">Сколько устройств подключается одновременно?</span>
+          <svg class="faq__sign" viewBox="0 0 16 16" aria-hidden="true"><line class="h" x1="2.5" y1="8" x2="13.5" y2="8"/><line class="v" x1="8" y1="2.5" x2="8" y2="13.5"/></svg>
+        </button>
+        <div class="faq__a" id="faq-a2" role="region" aria-labelledby="faq-q2">
+          <div><p>На данный момент 4. Рассматриваем расширение да 8 устройств.</p></div>
+        </div>
+      </div>
+      <div class="faq__item">
+        <button class="faq__q" type="button" id="faq-q3" aria-expanded="false" aria-controls="faq-a3">
+          <span class="faq__node" aria-hidden="true"></span>
+          <span class="faq__label">Как защищены данные?</span>
+          <svg class="faq__sign" viewBox="0 0 16 16" aria-hidden="true"><line class="h" x1="2.5" y1="8" x2="13.5" y2="8"/><line class="v" x1="8" y1="2.5" x2="8" y2="13.5"/></svg>
+        </button>
+        <div class="faq__a" id="faq-a3" role="region" aria-labelledby="faq-q3">
+          <div><p>Схема шифрования пока не выбрана. Но неоспоримый факт: данные лежат только на самом устройстве и никуда не уходят.</p></div>
+        </div>
+      </div>
+      <div class="faq__item">
+        <button class="faq__q" type="button" id="faq-q4" aria-expanded="false" aria-controls="faq-a4">
+          <span class="faq__node" aria-hidden="true"></span>
+          <span class="faq__label">А если устройство потеряется или сломается?</span>
+          <svg class="faq__sign" viewBox="0 0 16 16" aria-hidden="true"><line class="h" x1="2.5" y1="8" x2="13.5" y2="8"/><line class="v" x1="8" y1="2.5" x2="8" y2="13.5"/></svg>
+        </button>
+        <div class="faq__a" id="faq-a4" role="region" aria-labelledby="faq-q4">
+          <div>
+		    <p>При утере устройства злоумышленники не смогут украсть данные — Wexus WX хранит файлы в зашифрованном виде.</p>
+			<p>При уничтожении устройства данные пропадут вместе с ним: облако автоматически делает копию у себя, WEXUS — нет. Для важных данных нужно делать резервную копию.</p>
+		  </div>
+        </div>
+      </div>
+      <div class="faq__item">
+        <button class="faq__q" type="button" id="faq-q5" aria-expanded="false" aria-controls="faq-a5">
+          <span class="faq__node" aria-hidden="true"></span>
+          <span class="faq__label">Сколько работает от батареи и с какой скоростью передаёт?</span>
+          <svg class="faq__sign" viewBox="0 0 16 16" aria-hidden="true"><line class="h" x1="2.5" y1="8" x2="13.5" y2="8"/><line class="v" x1="8" y1="2.5" x2="8" y2="13.5"/></svg>
+        </button>
+        <div class="faq__a" id="faq-a5" role="region" aria-labelledby="faq-q5">
+          <div><p>До 10 часов непрерывной работы на скорости до 400Мб/с. До 5 дней в режиме ожидания</p></div>
+        </div>
+      </div>
+      <div class="faq__item">
+        <button class="faq__q" type="button" id="faq-q6" aria-expanded="false" aria-controls="faq-a6">
+          <span class="faq__node" aria-hidden="true"></span>
+          <span class="faq__label">Это уже можно купить?</span>
+          <svg class="faq__sign" viewBox="0 0 16 16" aria-hidden="true"><line class="h" x1="2.5" y1="8" x2="13.5" y2="8"/><line class="v" x1="8" y1="2.5" x2="8" y2="13.5"/></svg>
+        </button>
+        <div class="faq__a" id="faq-a6" role="region" aria-labelledby="faq-q6">
+          <div><p>Нет. Это проект программы «Стартап как диплом»: есть проработанный прототип WX-1TB. Заявка означает место в списке на тест прототипа, а не покупку.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="wrap site-foot">
+    <div class="site-foot__grid">
+      <!-- колонка бренда: знак, клейм и модель прототипа -->
+      <div class="site-foot__brand">
+        <div class="site-foot__lockup">
+          <svg viewBox="14.8 10.8 70.4 60.4" aria-hidden="true">
+            <circle cx="50" cy="50" r="9" fill="#00C2B8"/>
+            <circle cx="50" cy="14" r="3.2" fill="currentColor"/>
+            <circle cx="82" cy="68" r="3.2" fill="currentColor"/>
+            <circle cx="18" cy="68" r="3.2" fill="currentColor"/>
+            <line x1="50" y1="50" x2="50" y2="18" stroke="currentColor" stroke-width="2.4"/>
+            <line x1="50" y1="50" x2="79" y2="66" stroke="currentColor" stroke-width="2.4"/>
+            <line x1="50" y1="50" x2="21" y2="66" stroke="currentColor" stroke-width="2.4"/>
+          </svg>
+          <span>wexus</span>
+        </div>
+        <p class="site-foot__claim">Твой узел. Твои данные.</p>
+        <p class="mono">WX–1TB prototype / rev 01</p>
+      </div>
+
+      <nav class="site-foot__col" aria-label="Разделы страницы">
+        <p class="site-foot__h">Разделы</p>
+        <a href="#hero">Обзор</a>
+        <a href="#problem">Проблема</a>
+        <a href="#modes">Как работает</a>
+        <a href="#device">Устройство</a>
+        <a href="#compare">Сравнение</a>
+        <a href="#economics">Экономика</a>
+      </nav>
+
+      <div class="site-foot__col">
+        <p class="site-foot__h">Проект</p>
+        <p class="note">Стартап как диплом. Команда 4.<br>Жученко В.А., Евцихевич М.А., Пыжов Д.И., Нугумаев А.А.</p>
+        <p class="note">Соцсети проекта — [уточнить]</p>
+      </div>
+
+      <div class="site-foot__col">
+        <p class="site-foot__h">Данные и заявки</p>
+        <p class="note">Политика обработки персональных данных — [уточнить]</p>
+        <p class="note">Заявка из формы уходит письмом на почту команды через сервис отправки форм FormSubmit (formsubmit.co).</p>
+        <button class="link-quiet" type="button" data-request>Оставить заявку</button>
+      </div>
+    </div>
+
+    <div class="site-foot__bottom">
+      <p class="note">Учебный проект, 2026. Страница не является офертой: продажи не начаты, цена не определена, названные сроки — планы команды, а не обязательство.</p>
+      <p class="note">Изображения устройства — абстрактные эскизы, а не фотографии серийного изделия. Некоторые значения будут уточняться по мере дополнительных испытаний.</p>
+      <svg class="site-foot__mark" viewBox="0 0 200 60" aria-hidden="true">
+        <g stroke="currentColor" stroke-width="1" opacity="0.4" fill="none">
+          <line x1="10" y1="30" x2="50" y2="15"/><line x1="50" y1="15" x2="90" y2="35"/>
+          <line x1="90" y1="35" x2="130" y2="20"/><line x1="130" y1="20" x2="170" y2="40"/>
+        </g>
+        <g fill="#00C2B8"><circle cx="50" cy="15" r="3"/><circle cx="130" cy="20" r="3"/></g>
+        <g fill="currentColor" opacity="0.5"><circle cx="10" cy="30" r="2.4"/><circle cx="90" cy="35" r="2.4"/><circle cx="170" cy="40" r="2.4"/></g>
+      </svg>
+    </div>
+  </footer>
+</section>
+
+</main>
+
+<!-- ============================================================
+     МОДАЛЬНОЕ ОКНО ЗАЯВКИ
+     Требования 152-ФЗ, учтённые здесь: чекбокс согласия не предзаполнен,
+     без него кнопка неактивна, текст согласия раскрывается прямо у формы
+     и содержит оператора, цель, перечень данных, действия, срок и порядок
+     отзыва. Согласие оформлено отдельным блоком, а не строчкой в оферте.
+     ============================================================ -->
+<dialog class="modal" id="requestModal" aria-labelledby="modalTitle">
+  <div class="modal__card">
+    <span class="modal__wire" aria-hidden="true"></span>
+    <button class="modal__close" type="button" id="modalClose" aria-label="Закрыть окно заявки">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><line x1="3" y1="3" x2="13" y2="13"/><line x1="13" y1="3" x2="3" y2="13"/></svg>
+    </button>
+
+    <h2 class="modal__title" id="modalTitle">Заявка на тест прототипа</h2>
+    <p class="note modal__lede">Это не покупка и не предзаказ. Мы собираем список тех, кому вышлем устройство на испытание, когда соберём перую партию прототипов.</p>
+
+    <form class="form" id="requestForm" novalidate>
+      <label class="field">
+        <span class="field__label">Как к тебе обращаться</span>
+        <input type="text" id="fName" name="name" autocomplete="name" required maxlength="80" placeholder="Имя">
+        <span class="field__error" data-for="fName">Пожалуйста, впиши своё имя.</span>
+      </label>
+
+      <label class="field">
+        <span class="field__label">Впиши свою почту</span>
+        <input type="email" id="fMail" name="email" autocomplete="email" required maxlength="120" placeholder="name@mail.ru">
+        <span class="field__error" data-for="fMail">Проверь адрес: нужен формат name@mail.ru.</span>
+      </label>
+
+      <label class="field">
+        <span class="field__label">Как планируешь использовать устройство <span class="field__opt">необязательно</span></span>
+        <select id="fSegment" name="segment">
+          <option value="">Не выбрано</option>
+		  <option>Безопасное хранение личных данных</option>
+		  <option>Безопасное хранение корпоративных данных</option>
+		  <option>Учёба, тяжёлые файлы</option>
+          <option>Фото и видеосъёмка</option>
+          <option>Общий доступ в небольшой команде</option>
+          <option>Поездки без стабильной сети</option>
+          <option>Другое</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="field__label">Что хочешь проверить <span class="field__opt">необязательно</span></span>
+        <textarea id="fNote" name="note" rows="3" maxlength="600" placeholder="Например: автономность на выезде и одновременная работа трёх устройств"></textarea>
+      </label>
+
+      <!-- СОГЛАСИЕ. Галочка не предзаполнена: без неё отправка недоступна -->
+      <div class="consent">
+        <label class="consent__check">
+          <input type="checkbox" id="fConsent" name="consent" required>
+          <span class="consent__box" aria-hidden="true"><svg viewBox="0 0 14 14"><polyline points="2.5,7.5 5.8,10.6 11.5,3.8"/></svg></span>
+          <span class="consent__text">Я даю согласие на обработку моих персональных данных на условиях, указанных ниже.</span>
+        </label>
+
+        <button class="consent__toggle" type="button" id="consentToggle" aria-expanded="false" aria-controls="consentText">
+          Прочитать условия обработки
+        </button>
+        <div class="consent__body" id="consentText">
+          <div>
+            <p>Оператор — команда проекта WEXUS (Жученко В.А., Евцихевич М.А., Пыжов Д.И., Нугумаев А.А.), контактные данные оператора — Evtsik@yandex.ru.</p>
+            <p>Перечень данных: имя, адрес электронной почты, а также сведения, которые ты добровольно напишешь в полях «как планируешь использовать» и «что хочешь проверить».</p>
+            <p>Цель: связаться с тобой по заявке на тест прототипа и вести список участников испытаний. Для других целей, включая рассылки и рекламу, данные не используются.</p>
+            <p>Действия с данными: сбор, запись, хранение, уточнение, использование, передача, удаление. Заявка доставляется на почту команды через сервис отправки форм FormSubmit (formsubmit.co); другим третьим лицам данные не передаются. Автоматизированного принятия решений не предусмотрено.</p>
+            <p>Срок: до достижения цели или до отзыва согласия. Отозвать согласие можно письмом на тот же адрес — Evtsik@yandex.ru; после отзыва данные удаляются.</p>
+            <p>Согласие даётся свободно, своей волей и в своём интересе. Отказ от согласия ничего не меняет в доступе к сайту — форма просто не отправится.</p>
+          </div>
+        </div>
+        <p class="consent__links">
+          <!-- когда политика будет опубликована, замените span на <a href="/privacy"> -->
+          <span class="consent__doc">Политика обработки персональных данных</span> и текст согласия отдельным документом — [скоро появится]
+        </p>
+      </div>
+
+      <div class="form__foot">
+        <button class="btn" type="submit" id="formSubmit" disabled>Отправить заявку</button>
+        <p class="note form__hint" id="formHint" aria-live="polite">Кнопка станет активной, когда ты отметишь согласие.</p>
+      </div>
+
+      <p class="note form__disclaimer"></p>
+    </form>
+
+    <!-- состояние после отправки: «заявка ушла» или «не получилось — отправь письмом» -->
+    <div class="form-done" id="formDone" hidden>
+      <div class="form-done__node" aria-hidden="true"></div>
+      <h3 class="form-done__title" id="doneTitle" tabindex="-1" aria-describedby="doneText">Заявка отправлена</h3>
+      <p class="note" id="doneText"></p>
+      <textarea class="form-done__text" id="doneMail" rows="7" readonly aria-label="Текст письма" hidden></textarea>
+      <div class="form-done__actions">
+        <a class="btn" id="mailtoLink" href="#" hidden>Открыть в почте</a>
+        <button class="link-quiet" type="button" id="copyMail" hidden>Скопировать текст</button>
+        <button class="link-quiet" type="button" id="retrySend" hidden>Попробовать снова</button>
+        <button class="link-quiet" type="button" id="doneClose">Закрыть</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<script>
+/* ============================================================
+   1. ИНДИКАТОР РАЗДЕЛОВ
+   Прокрутку не перехватываем: только подсвечиваем, где пользователь
+   находится, и перекрашиваем рейку под фон текущего экрана.
+   ============================================================ */
+(function(){
+  var deck = document.getElementById('deck');
+  var rail = document.getElementById('rail');
+  var fill = document.getElementById('progressFill');
+  var links = Array.prototype.slice.call(rail.querySelectorAll('a'));
+  var screens = Array.prototype.slice.call(document.querySelectorAll('.screen'));
+
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(!e.isIntersecting) return;
+      var id = e.target.id;
+      links.forEach(function(a){
+        a.setAttribute('aria-current', a.getAttribute('data-rail') === id ? 'true' : 'false');
+      });
+      var theme = e.target.getAttribute('data-theme');
+      rail.setAttribute('data-theme', theme);
+      document.getElementById('bar').setAttribute('data-theme', theme);
+      /* полоса браузера идёт за экраном: иначе над светлым экраном висит почти чёрная планка */
+      var tc = document.querySelector('meta[name="theme-color"]');
+      if(tc) tc.setAttribute('content', getComputedStyle(e.target).backgroundColor);
+    });
+  }, { threshold: 0.55 });
+  screens.forEach(function(s){ io.observe(s); });
+
+  /* Мини-шапка живёт между первым и последним экраном: на первом действие
+     и так на виду, на последнем — тем более, дублировать незачем */
+  var bar = document.getElementById('bar');
+  var heroIn = true, finalIn = false;
+  var barIO = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.target.id === 'hero') heroIn = e.isIntersecting;
+      if(e.target.id === 'final') finalIn = e.isIntersecting;
+    });
+    if(window.matchMedia('(max-width:900px)').matches){
+      /* на мобильном панель показывается только при прокрутке вверх */
+      if(heroIn || finalIn) bar.classList.remove('is-on');
+    } else {
+      bar.classList.toggle('is-on', !heroIn && !finalIn);
+    }
+  }, { threshold: 0.5 });
+  barIO.observe(document.getElementById('hero'));
+  barIO.observe(document.getElementById('final'));
+
+  /* Полоса прогресса для узких экранов. Скроллером может быть либо лента,
+     либо сама страница — зависит от медиазапроса, поэтому слушаем оба. */
+  /* на мобильном панель не висит поверх контента постоянно:
+     скрывается при прокрутке вниз, возвращается при прокрутке вверх */
+  var lastY = 0;
+  function barOnScroll(){
+    if(!window.matchMedia('(max-width:900px)').matches) return;
+    var el = (deck.scrollHeight - deck.clientHeight > 4) ? deck : document.scrollingElement;
+    var y = el.scrollTop;
+    if(y > lastY + 6) bar.classList.remove('is-on');
+    else if(y < lastY - 6 && !heroIn && !finalIn) bar.classList.add('is-on');
+    lastY = y;
+  }
+  deck.addEventListener('scroll', barOnScroll, { passive:true });
+  window.addEventListener('scroll', barOnScroll, { passive:true });
+
+  function progress(){
+    var el = (deck.scrollHeight - deck.clientHeight > 4) ? deck : document.scrollingElement;
+    var max = el.scrollHeight - el.clientHeight;
+    fill.style.width = (max > 0 ? (el.scrollTop / max) * 100 : 0) + '%';
+  }
+  deck.addEventListener('scroll', progress, { passive:true });
+  window.addEventListener('scroll', progress, { passive:true });
+  window.addEventListener('resize', progress);
+  progress();
+})();
+
+/* Бегунок сегментированных переключателей: позиция берётся из
+   фактической геометрии кнопки, поэтому работает и при 2×2, и в столбик */
+function placeMarker(marker, btn){
+  if(!marker || !btn) return;
+  marker.style.width = btn.offsetWidth + 'px';
+  marker.style.height = btn.offsetHeight + 'px';
+  marker.style.transform = 'translate(' + btn.offsetLeft + 'px,' + btn.offsetTop + 'px)';
+}
+
+/* ============================================================
+   2. ПЕРЕКЛЮЧАТЕЛЬ РЕЖИМОВ
+   Схема одна, меняется только состояние: узлы остаются на местах,
+   поэтому видно, что это одно устройство, а не два разных продукта.
+   ============================================================ */
+(function(){
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.switch button'));
+  var scheme = document.getElementById('scheme');
+  var panels = { local: document.getElementById('panel-local'), solo: document.getElementById('panel-solo') };
+
+  var switchEl = document.querySelector('.switch');
+
+  function activate(mode){
+    tabs.forEach(function(b){ b.setAttribute('aria-selected', b.getAttribute('data-mode') === mode ? 'true' : 'false'); });
+    /* меняем только режимный класс: is-live трогать нельзя,
+       иначе CSS-правило .scheme:not(.is-live) погасит все связи */
+    scheme.classList.remove('is-solo', 'is-local');
+    scheme.classList.add('is-' + mode);
+    Object.keys(panels).forEach(function(k){ panels[k].classList.toggle('is-on', k === mode); });
+    placeMarker(switchEl && switchEl.querySelector('.switch__marker'),
+                tabs.filter(function(b){ return b.getAttribute('data-mode') === mode; })[0]);
+    /* графику схемы ведёт отдельный модуль — сообщаем ему о смене режима */
+    document.dispatchEvent(new CustomEvent('wexus:mode', { detail: mode }));
+  }
+  var switchMarker = switchEl && switchEl.querySelector('.switch__marker');
+  function resyncSwitch(){
+    var cur = tabs.filter(function(b){ return b.getAttribute('aria-selected') === 'true'; })[0];
+    placeMarker(switchMarker, cur);
+  }
+  window.addEventListener('resize', resyncSwitch);
+  window.addEventListener('load', resyncSwitch);
+  resyncSwitch();
+
+  tabs.forEach(function(b){
+    b.addEventListener('click', function(){ activate(b.getAttribute('data-mode')); });
+    /* стрелки — штатная клавиатурная навигация для role="tablist" */
+    b.addEventListener('keydown', function(e){
+      if(e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      var next = tabs[(tabs.indexOf(b) + 1) % tabs.length];
+      next.focus(); activate(next.getAttribute('data-mode'));
+    });
+  });
+})();
+
+/* Аккордеон вопросов: раскрыт всегда один ответ, высота анимируется через
+   grid-template-rows — без скачка и без фиксированных пикселей */
+(function(){
+  var items = Array.prototype.slice.call(document.querySelectorAll('.faq__item'));
+  items.forEach(function(item){
+    var q = item.querySelector('.faq__q');
+    q.addEventListener('click', function(){
+      var open = item.classList.contains('is-open');
+      items.forEach(function(o){
+        o.classList.remove('is-open');
+        o.querySelector('.faq__q').setAttribute('aria-expanded', 'false');
+      });
+      if(!open){
+        item.classList.add('is-open');
+        q.setAttribute('aria-expanded', 'true');
+      }
+    });
+  });
+})();
+
+/* ============================================================
+   3. ЖИВАЯ СХЕМА ОБМЕНА ДАННЫМИ
+   Связи прочерчиваются, когда пользователь доходит до экрана.
+   Дальше по каждой связи идут одиночные «пакеты»: направление
+   выбирается случайно, но на одной линии одновременно живёт только
+   один пакет — встречных столкновений не бывает. Крупный пакет
+   движется медленнее мелкого, появляется и исчезает плавно, а узлы
+   на концах мигают диодом в момент отправки и приёма.
+   ============================================================ */
+(function(){
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var scheme = document.getElementById('scheme');
+  if(!scheme) return;
+  var svg = scheme.querySelector('svg');
+  var NS = 'http://www.w3.org/2000/svg';
+
+  var MIN_SCALE = 1;      /* базовый размер пакета */
+  var MAX_SCALE = 2.5;    /* самый крупный — в 2.5 раза больше */
+  var BASE_R = 2.4;       /* радиус при базовом размере, в единицах viewBox */
+  var BASE_SPEED = 92;    /* единиц в секунду при базовом размере */
+  var FADE_LEN = 26;      /* путь на появление и угасание, в единицах viewBox */
+  var FADE_MAX = 0.30;    /* но не больше этой доли короткой связи */
+
+  function blink(el){
+    if(!el) return;
+    el.classList.remove('is-blink');
+    void el.getBoundingClientRect();
+    el.classList.add('is-blink');
+  }
+
+  var links = Array.prototype.map.call(svg.querySelectorAll('g[stroke-dasharray] > path'), function(path, linkIndex){
+    var group = path.closest('[data-mode]');
+    /* до первого запуска точки стоят в начале связи с нулевым радиусом:
+       иначе они лежали бы в углу системы координат и растягивали границы svg */
+    var origin = path.getPointAtLength(0);
+    function park(c){
+      c.setAttribute('r', '0');
+      c.setAttribute('cx', origin.x.toFixed(2));
+      c.setAttribute('cy', origin.y.toFixed(2));
+    }
+    /* шлейф: две догоняющие точки меньшего размера — пакет читается как комета */
+    var tail = [0.045, 0.085].map(function(lag){
+      var c = document.createElementNS(NS, 'circle');
+      c.setAttribute('class', 'pkt');
+      c.setAttribute('fill', '#00C2B8');
+      c.setAttribute('data-link', linkIndex);
+      c.setAttribute('data-role', 'tail');
+      park(c);
+      path.parentNode.appendChild(c);
+      return { el: c, lag: lag };
+    });
+    var dot = document.createElementNS(NS, 'circle');
+    dot.setAttribute('class', 'pkt');
+    dot.setAttribute('fill', '#00C2B8');
+    dot.setAttribute('data-link', linkIndex);
+    dot.setAttribute('data-role', 'head');
+    park(dot);
+    path.parentNode.appendChild(dot);
+    return {
+      path: path,
+      mode: group ? group.getAttribute('data-mode') : '',
+      len: path.getTotalLength(),
+      from: document.getElementById(path.getAttribute('data-from')),
+      to:   document.getElementById(path.getAttribute('data-to')),
+      dot: dot, tail: tail, busy: false, next: 0, arrived: false,
+      /* короткая связь получает пропорционально короткую зону появления,
+         длинная — фиксированную: пакет не тлеет полпути и не заезжает
+         полупрозрачным на корпус устройства */
+      fade: Math.min(FADE_MAX, FADE_LEN / path.getTotalLength())
+    };
+  });
+
+  function spawn(link, now){
+    link.busy = true;
+    link.arrived = false;
+    link.dir = Math.random() < 0.5 ? 1 : -1;                    /* в обе стороны */
+    link.scale = MIN_SCALE + Math.random() * (MAX_SCALE - MIN_SCALE);
+    link.dot.setAttribute('r', (BASE_R * link.scale).toFixed(2));
+    link.tail.forEach(function(t, i){ t.el.setAttribute('r', (BASE_R * link.scale * (i ? 0.42 : 0.66)).toFixed(2)); });
+    link.dur = (link.len / (BASE_SPEED / link.scale)) * 1000;   /* крупнее — медленнее */
+    link.t0 = now;
+    blink(link.dir > 0 ? link.from : link.to);                  /* узел отправил */
+  }
+
+  function idle(link, now){
+    link.busy = false;
+    link.dot.style.opacity = '0';
+    link.tail.forEach(function(t){ t.el.style.opacity = '0'; });
+    link.next = now + 500 + Math.random() * 3400;               /* случайные паузы */
+  }
+
+  var running = false, activeMode = scheme.className.indexOf('is-local') > -1 ? 'local' : 'solo';
+
+  function frame(now){
+    if(!running) return;
+    for(var i = 0; i < links.length; i++){
+      var l = links[i];
+      if(l.mode !== activeMode){
+        if(l.busy) idle(l, now);
+        continue;
+      }
+      if(!l.busy){
+        if(l.next === 0) l.next = now + Math.random() * 1800;
+        if(now >= l.next) spawn(l, now);
+        continue;
+      }
+      var t = (now - l.t0) / l.dur;
+      if(t >= 1){
+        if(!l.arrived) blink(l.dir > 0 ? l.to : l.from);
+        idle(l, now);
+        continue;
+      }
+      var dist = l.dir > 0 ? t * l.len : (1 - t) * l.len;
+      var pt = l.path.getPointAtLength(dist);
+      l.dot.setAttribute('cx', pt.x.toFixed(2));
+      l.dot.setAttribute('cy', pt.y.toFixed(2));
+      /* плавное появление у отправителя и угасание у получателя */
+      var fade = Math.min(1, t / l.fade, (1 - t) / l.fade);
+      l.dot.style.opacity = (0.92 * fade).toFixed(3);
+      /* шлейф идёт следом с отставанием и гаснет быстрее головы */
+      l.tail.forEach(function(tl, k){
+        var tt = t - tl.lag;
+        if(tt <= 0){ tl.el.style.opacity = '0'; return; }
+        var td = l.dir > 0 ? tt * l.len : (1 - tt) * l.len;
+        var tp = l.path.getPointAtLength(td);
+        tl.el.setAttribute('cx', tp.x.toFixed(2));
+        tl.el.setAttribute('cy', tp.y.toFixed(2));
+        var tf = Math.min(1, tt / l.fade, (1 - tt) / l.fade);
+        tl.el.style.opacity = (0.92 * fade * tf * (k ? 0.2 : 0.42)).toFixed(3);
+      });
+      /* принимающий узел мигает ровно тогда, когда пакет начинает гаснуть */
+      if(!l.arrived && t > 1 - l.fade){
+        blink(l.dir > 0 ? l.to : l.from);
+        l.arrived = true;
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  /* Связи сначала прочерчиваются сплошными — «канал поднялся», — держат
+     короткую паузу и распадаются в пунктир: по каналу пошли данные.
+     Период штриха при этом не меняется: просветы раскрываются все сразу,
+     каждый на своём месте, поэтому линия не дробится рывками и короткая
+     связь меняется так же, как длинная. Кривая — мягкая out-кривая:
+     фирменная экспонента здесь съела бы всё изменение в первой трети. */
+  var TRAIL_DRAW = 620, TRAIL_STEP = 90, TRAIL_HOLD = 120, TRAIL_MELT = 300;
+  var TRAIL_EASE = 'cubic-bezier(.33,1,.68,1)';
+
+  function clearTrail(path){
+    (path.__trail || []).forEach(clearTimeout);
+    path.__trail = null;
+    path.style.transition = '';
+    path.style.strokeDasharray = '';
+    path.style.strokeDashoffset = '';
+  }
+
+  function drawTrails(mode){
+    /* прошлый запуск мог оборваться на середине — снимаем его хвосты со всех связей */
+    links.forEach(function(l){ clearTrail(l.path); });
+    var paths = svg.querySelectorAll('[data-mode="' + mode + '"] g[stroke-dasharray] > path');
+    Array.prototype.forEach.call(paths, function(path, i){
+      var len = Math.ceil(path.getTotalLength());
+      var melt = TRAIL_DRAW + i * TRAIL_STEP + TRAIL_HOLD;
+      path.style.transition = 'none';
+      path.style.opacity = '1';
+      path.style.strokeDasharray = len + ' ' + len;
+      path.style.strokeDashoffset = len;
+      void path.getBoundingClientRect();
+      path.style.transition = 'stroke-dashoffset ' + TRAIL_DRAW + 'ms cubic-bezier(.22,1,.36,1) ' + (i * TRAIL_STEP) + 'ms';
+      path.style.strokeDashoffset = '0';
+      path.__trail = [
+        setTimeout(function(){
+          /* «10 0» — тот же период, что в покое, и та же сплошная линия:
+             подмена незаметна, зато дальше просветы растут от нуля на месте */
+          path.style.transition = 'none';
+          path.style.strokeDasharray = '10 0';
+          void path.getBoundingClientRect();
+          path.style.transition = 'stroke-dasharray ' + TRAIL_MELT + 'ms ' + TRAIL_EASE;
+          path.style.strokeDasharray = '5 5';
+        }, melt),
+        setTimeout(function(){
+          /* значение уже совпало с тем, что задано группой, — снимаем инлайн молча */
+          path.style.transition = '';
+          path.style.strokeDasharray = '';
+          path.style.strokeDashoffset = '';
+        }, melt + TRAIL_MELT + 60)
+      ];
+      /* пакет не выезжает на связь, пока она не дорисована и не стала пунктиром */
+      for(var k = 0; k < links.length; k++){
+        if(links[k].path === path) links[k].next = performance.now() + melt + TRAIL_MELT + 200 + Math.random() * 1200;
+      }
+    });
+    /* узлы по очереди подтверждают, что связь поднялась */
+    var leds = svg.querySelectorAll('[data-mode="' + mode + '"] .node-led, #led-wexus');
+    Array.prototype.forEach.call(leds, function(led, i){
+      setTimeout(function(){ blink(led); }, 260 + i * 120);
+    });
+  }
+
+  function setMode(mode){
+    activeMode = mode;
+    links.forEach(function(l){ l.next = 0; if(l.busy) idle(l, performance.now()); });
+    if(scheme.classList.contains('is-live') && !reduced.matches) drawTrails(mode);
+  }
+  document.addEventListener('wexus:mode', function(e){ setMode(e.detail); });
+
+  /* первый показ: связи появляются только когда пользователь дошёл до экрана */
+  var section = document.getElementById('modes');
+  var started = false;
+  new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        if(!started){
+          started = true;
+          scheme.classList.add('is-live');
+          if(!reduced.matches){
+            drawTrails(activeMode);
+            setTimeout(function(){
+              running = true;
+              requestAnimationFrame(frame);
+            }, 700);
+          }
+        } else if(!reduced.matches && !running){
+          running = true;
+          requestAnimationFrame(frame);
+        }
+      } else if(running){
+        running = false;   /* за пределами экрана кадры не тратим */
+      }
+    });
+  }, { threshold: 0.35 }).observe(section);
+})();
+
+/* ============================================================
+   4. ВЫБОР ОБЪЁМА
+   Меняет гравировку на чертеже и строку модели в таблице — чтобы
+   объём был не списком цифр, а свойством конкретного устройства.
+   ============================================================ */
+(function(){
+  var caps = Array.prototype.slice.call(document.querySelectorAll('.caps button'));
+  var marker = document.querySelector('.caps__marker');
+  var engrave = document.getElementById('capEngrave');
+  var model = document.getElementById('specModel');
+
+  function moveMarker(i){ placeMarker(marker, caps[i]); }
+  window.addEventListener('resize', function(){
+    moveMarker(caps.findIndex(function(b){ return b.getAttribute('aria-pressed') === 'true'; }));
+  });
+  window.addEventListener('load', function(){
+    moveMarker(caps.findIndex(function(b){ return b.getAttribute('aria-pressed') === 'true'; }));
+  });
+
+  caps.forEach(function(b, i){
+    b.addEventListener('click', function(){
+      caps.forEach(function(x){ x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+      moveMarker(i);
+      /* гравировка меняется не мгновенно: короткое «перещёлкивание», как на приборе */
+      engrave.classList.add('is-swap');
+      setTimeout(function(){
+        engrave.textContent = b.getAttribute('data-cap');
+        model.textContent = b.getAttribute('data-model');
+        engrave.classList.remove('is-swap');
+      }, 130);
+    });
+  });
+  moveMarker(caps.findIndex(function(b){ return b.getAttribute('aria-pressed') === 'true'; }));
+})();
+
+
+/* ============================================================
+   6. ОКНО ЗАЯВКИ
+   Заявка уходит письмом на почту команды через FormSubmit: сайт
+   статический, своего сервера у него нет. Если сервис недоступен,
+   посетитель получает готовый текст письма и ссылку mailto.
+   Согласие по 152-ФЗ — отдельная галочка, не предзаполнена,
+   без неё кнопка отправки заблокирована.
+   ============================================================ */
+(function(){
+  var TEAM_EMAIL = 'Evtsik@yandex.ru';
+  var SUBJECT = 'Заявка на тест прототипа WEXUS';
+  /* ДО ЗАПУСКА: один раз подтвердите адрес. Отправьте тестовую заявку —
+     FormSubmit пришлёт на TEAM_EMAIL письмо «Activate Form» (проверьте и
+     папку «Спам», отметьте письмо как «Не спам»), нажмите кнопку в нём.
+     Заявки до подтверждения сервис хранит 30 дней и доставит после него.
+     Вместе с подтверждением приходит случайная строка — её можно подставить
+     в SEND_URL вместо почты, чтобы адрес не светился в коде страницы. */
+  var SEND_URL = 'https://formsubmit.co/ajax/' + TEAM_EMAIL;
+  var SEND_TIMEOUT = 15000;
+  /* Со страниц, открытых как файл (file://), FormSubmit заявки не принимает.
+     Чтобы проверить форму с диска, впишите сюда адрес сайта
+     (например, 'https://wexus.ru/') — по справке сервиса он подставит его
+     вместо адреса страницы. На сайте поле можно оставить пустым. */
+  var SITE_URL = '';
+
+  var modal = document.getElementById('requestModal');
+  if(!modal || !modal.showModal) return;
+  var card = modal.querySelector('.modal__card');
+  var form = document.getElementById('requestForm');
+  var done = document.getElementById('formDone');
+  var submit = document.getElementById('formSubmit');
+  var consent = document.getElementById('fConsent');
+  var hint = document.getElementById('formHint');
+  var consentBox = document.querySelector('.consent');
+  var opener = null;
+  var shown = false;    // окно открыто и не закрывается прямо сейчас
+  var unseen = false;   // итог отправки пришёл, пока окно было закрыто
+
+  function open(fromEl){
+    opener = fromEl || null;
+    shown = true;
+    var showResult = unseen;
+    unseen = false;
+    if(!showResult){ form.hidden = false; done.hidden = true; }
+    modal.showModal();
+    /* класс ставим следующим кадром — иначе переход не проигрывается */
+    requestAnimationFrame(function(){ modal.classList.add('is-open'); });
+    setTimeout(function(){
+      (showResult ? document.getElementById('doneTitle') : document.getElementById('fName')).focus({preventScroll:true});
+    }, 260);
+  }
+  function close(){
+    shown = false;
+    modal.classList.remove('is-open');
+    setTimeout(function(){
+      modal.close();
+      if(opener && opener.focus) opener.focus();
+    }, 220);
+  }
+
+  /* все кнопки заявки открывают окно */
+  Array.prototype.forEach.call(document.querySelectorAll('[data-request]'), function(el){
+    el.addEventListener('click', function(e){ e.preventDefault(); open(el); });
+  });
+  document.getElementById('modalClose').addEventListener('click', close);
+  document.getElementById('doneClose').addEventListener('click', close);
+  modal.addEventListener('cancel', function(e){ e.preventDefault(); close(); });
+  modal.addEventListener('click', function(e){ if(e.target === modal) close(); });
+
+  /* раскрытие условий обработки */
+  var cToggle = document.getElementById('consentToggle');
+  cToggle.addEventListener('click', function(){
+    var open = consentBox.classList.toggle('is-open');
+    cToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    cToggle.textContent = open ? 'Свернуть условия' : 'Прочитать условия обработки';
+  });
+
+  /* кнопка активна только при отмеченном согласии; пока заявка в пути,
+     кнопка не выключается, а помечается aria-disabled — так фокус не теряется,
+     а согласие замораживается: отозвать его на лету уже нельзя */
+  var sending = false;
+  function syncSubmit(){
+    submit.disabled = !consent.checked;
+    consent.disabled = sending;
+    if(sending) submit.setAttribute('aria-disabled', 'true');
+    else submit.removeAttribute('aria-disabled');
+    submit.textContent = sending ? 'Отправляем…' : 'Отправить заявку';
+    hint.textContent = sending
+      ? 'Отправляем заявку команде WEXUS…'
+      : consent.checked
+        ? 'Заявка уйдёт письмом команде WEXUS.'
+        : 'Кнопка станет активной, когда ты отметишь согласие.';
+  }
+  consent.addEventListener('change', syncSubmit);
+  syncSubmit();
+
+  /* валидация с понятными подсказками вместо системных окон */
+  function check(el){
+    var field = el.closest('.field');
+    var bad = !el.checkValidity();
+    if(field) field.classList.toggle('is-bad', bad);
+    return !bad;
+  }
+  ['fName','fMail'].forEach(function(id){
+    var el = document.getElementById(id);
+    el.addEventListener('blur', function(){ check(el); });
+    el.addEventListener('input', function(){ if(el.closest('.field').classList.contains('is-bad')) check(el); });
+  });
+
+  /* текст для запасного пути — письма из почтового клиента посетителя */
+  function letter(data){
+    return SUBJECT + '\n\n'
+      + 'Имя: ' + data.name + '\n'
+      + 'Почта для ответа: ' + data.email + '\n'
+      + 'Сценарий: ' + (data.segment || 'не указан') + '\n'
+      + 'Что хочет проверить: ' + (data.note || 'не указано') + '\n\n'
+      + 'Согласие на обработку персональных данных дано в форме на сайте '
+      + data.date + '.';
+  }
+
+  /* отправка: JSON на FormSubmit, в ответ { success: "true" | "false", message } */
+  function send(data){
+    if(!window.fetch) return Promise.reject(new Error('fetch недоступен'));
+    var ctrl = window.AbortController ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function(){ ctrl.abort(); }, SEND_TIMEOUT) : 0;
+    return fetch(SEND_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        _subject: SUBJECT,
+        _template: 'table',
+        /* адрес страницы в письме; с диска — адрес сайта из SITE_URL */
+        _url: /^https?:$/.test(location.protocol) ? location.href : (SITE_URL || undefined),
+        /* «Ответить» в почте пойдёт посетителю: сервис берёт адрес из email и _replyto */
+        _replyto: data.email,
+        email: data.email,
+        'Имя': data.name,
+        'Сценарий': data.segment || 'не указан',
+        'Что хочет проверить': data.note || 'не указано',
+        'Согласие на обработку ПД': 'дано в форме на сайте ' + data.date
+      }),
+      signal: ctrl ? ctrl.signal : undefined
+    }).then(function(res){
+      return res.json().catch(function(){ return {}; }).then(function(body){
+        clearTimeout(timer);
+        if(res.ok && String(body.success) === 'true') return;
+        /* адрес ещё не подтверждён: сервис просит активировать форму,
+           но заявку сохраняет и доставит сразу после подтверждения */
+        if(/needs activation/i.test(body.message || '')){
+          if(window.console) console.warn('FormSubmit: подтвердите адрес ' + TEAM_EMAIL + ' по ссылке «Activate Form» из письма сервиса.');
+          return;
+        }
+        throw new Error(body.message || ('HTTP ' + res.status));
+      });
+    }, function(err){ clearTimeout(timer); throw err; });
+  }
+
+  var doneTitle = document.getElementById('doneTitle');
+  var doneText = document.getElementById('doneText');
+  var doneMail = document.getElementById('doneMail');
+  var mailtoLink = document.getElementById('mailtoLink');
+  var copyBtn = document.getElementById('copyMail');
+  var retryBtn = document.getElementById('retrySend');
+  var closeBtn = document.getElementById('doneClose');
+
+  /* итог: «заявка принята» или запасной путь — письмо с готовым текстом */
+  function showDone(ok, data){
+    var text = ok ? '' : letter(data);
+    done.classList.toggle('is-error', !ok);
+    doneTitle.textContent = ok ? 'Заявка отправлена' : 'Не получилось отправить';
+    doneText.textContent = ok
+      ? 'Спасибо! Заявка принята — свяжемся с тобой по адресу ' + data.email + '.'
+      : 'Не получилось отправить заявку через сайт. Отправь её обычным письмом на ' + TEAM_EMAIL + ' — текст уже собран.';
+    doneMail.value = text;
+    mailtoLink.href = ok ? '#' : 'mailto:' + TEAM_EMAIL
+      + '?subject=' + encodeURIComponent(SUBJECT)
+      + '&body=' + encodeURIComponent(text);
+    doneMail.hidden = mailtoLink.hidden = copyBtn.hidden = retryBtn.hidden = ok;
+    closeBtn.hidden = !ok;
+    form.hidden = true;
+    done.hidden = false;
+    card.scrollTop = 0;
+    /* окно закрыли, пока заявка была в пути: итог покажем при следующем открытии.
+       Фокус — на заголовок итога: экранный диктор прочтёт его и описание */
+    unseen = !shown;
+    if(shown) doneTitle.focus({preventScroll:true});
+  }
+
+  function trySend(){
+    if(sending) return;
+    var okName = check(document.getElementById('fName'));
+    var okMail = check(document.getElementById('fMail'));
+    if(!okName || !okMail || !consent.checked){
+      var first = form.querySelector('.field.is-bad input') || (consent.checked ? null : consent);
+      if(first) first.focus();
+      return;
+    }
+    var data = {
+      name: document.getElementById('fName').value.trim(),
+      email: document.getElementById('fMail').value.trim(),
+      segment: document.getElementById('fSegment').value,
+      note: document.getElementById('fNote').value.trim(),
+      date: new Date().toLocaleDateString('ru-RU')
+    };
+    sending = true;
+    syncSubmit();
+    send(data).then(function(){
+      sending = false;
+      form.reset();
+      Array.prototype.forEach.call(form.querySelectorAll('.field.is-bad'), function(f){ f.classList.remove('is-bad'); });
+      syncSubmit();
+      showDone(true, data);
+    }, function(err){
+      sending = false;
+      syncSubmit();
+      if(window.console) console.warn('Заявка не ушла через FormSubmit:', err);
+      showDone(false, data);
+    });
+  }
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    trySend();
+  });
+
+  retryBtn.addEventListener('click', function(){
+    form.hidden = false;
+    done.hidden = true;
+    submit.focus();   // с прокруткой: кнопка «Отправляем…» внизу длинной формы
+    trySend();
+  });
+
+  copyBtn.addEventListener('click', function(){
+    var area = document.getElementById('doneMail');
+    var btn = this;
+    area.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch(err){ ok = false; }
+    if(navigator.clipboard && !ok){ navigator.clipboard.writeText(area.value); ok = true; }
+    btn.textContent = ok ? 'Текст скопирован' : 'Скопируй вручную';
+    setTimeout(function(){ btn.textContent = 'Скопировать текст'; }, 2200);
+  });
+})();
+
+/* ============================================================
+   7. КАЛЬКУЛЯТОР ВЛАДЕНИЯ
+   Считает по числам пользователя. Никаких зашитых «экономий»:
+   цена устройства не определена, её вводит сам посетитель.
+   Срок использования тоже выбирает посетитель: окупаемость от него
+   не зависит, а итог за срок — зависит. Цифры и график плавно
+   перетекают к новым значениям, наведение показывает любой месяц.
+   ============================================================ */
+(function(){
+  function $(id){ return document.getElementById(id); }
+  var wrap = document.querySelector('#economics .econ');
+  var board = wrap.querySelector('.econ__board');
+  var feeEl = $('fee'), priceEl = $('price'), resultEl = $('result');
+  var chart = $('chart'), canvas = $('plotCanvas');
+  var baseG = $('chBase'), hoverG = $('chHover'), tip = $('chartTip');
+  var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  function fmt(n){ return Math.round(n).toLocaleString('ru-RU'); }
+  function r1(n){ return Math.round(n * 10) / 10; }
+  function plural(n, one, few, many){
+    var t = n % 100, d = n % 10;
+    if(t >= 11 && t <= 14) return many;
+    if(d === 1) return one;
+    if(d >= 2 && d <= 4) return few;
+    return many;
+  }
+  function yearWord(n){ return plural(n, 'год', 'года', 'лет'); }
+  function monthWord(n){ return plural(n, 'месяц', 'месяца', 'месяцев'); }
+  /* 27 → «2 года 3 месяца» */
+  function span(m){
+    var y = Math.floor(m / 12), r = m % 12, s = [];
+    if(y) s.push(y + ' ' + yearWord(y));
+    if(r) s.push(r + ' ' + monthWord(r));
+    return s.join(' ');
+  }
+  function set(id, text){ var n = $(id); if(n.textContent !== text) n.textContent = text; }
+  /* svg-элемент строкой: геометрия — атрибутами, цвета — классами в css */
+  function tag(name, attrs, text){
+    var s = '<' + name;
+    for(var k in attrs) s += ' ' + k + '="' + attrs[k] + '"';
+    return s + (text == null ? '/>' : '>' + text + '</' + name + '>');
+  }
+  /* ширина подписи по настоящему шрифту: по ней считаются поля и коллизии */
+  var ctx = document.createElement('canvas').getContext('2d');
+  function textW(text, font){ ctx.font = font; return ctx.measureText(text).width; }
+  var F_TICK = '11px "IBM Plex Mono", monospace';
+  var F_END = '500 12.5px "IBM Plex Sans", sans-serif';
+  var F_NOTE = '12px "IBM Plex Sans", sans-serif';
+  function easeOut(p){ return 1 - Math.pow(1 - p, 3); }
+  function easeInOut(p){ return p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2; }
+
+  /* срок использования — отдельный ввод; дольше среднего срока службы накопителя не предлагаем */
+  var LIFE_MONTHS = 120;
+  function termYears(){
+    var c = wrap.querySelector('input[name="term"]:checked');
+    return c ? +c.value : 5;
+  }
+
+  /* «круглый» шаг оси ₽: 3–5 делений по 1, 2, 2,5 или 5 × 10ⁿ */
+  function niceStep(max){
+    var raw = max / 3.5, mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10)), n = raw / mag;
+    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * mag;
+  }
+
+  function clampTo(el){ return Math.max(+el.min || 0, Math.min(+el.max || Infinity, +el.value || 0)); }
+
+  function read(){
+    var fee = clampTo(feeEl), price = clampTo(priceEl);
+    var months = termYears() * 12;
+    var max = Math.max(fee * months, price, 1000);
+    var step = niceStep(max);
+    return {fee: fee, price: price, months: months, step: step, top: Math.ceil(max / step - 1e-9) * step};
+  }
+  function copy(a, b){ b.fee = a.fee; b.price = a.price; b.months = a.months; b.top = a.top; return b; }
+
+  var target = read();            /* куда идём */
+  var shown = copy(target, {});   /* что нарисовано сейчас — догоняет target */
+  var reveal = 1;                 /* доля прочерченного графика при первом показе */
+  var hoverM = null, geo = null, tween = 0, announceTimer = 0;
+
+  /* ——— график ——— */
+  function draw(){
+    var W = canvas.clientWidth, H = canvas.clientHeight;
+    if(!W || !H) return;
+    chart.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    var s = shown, t = target;
+    var fee = s.fee, price = s.price, months = s.months, total = fee * months;
+
+    /* поля: слева — по самой длинной подписи оси ₽, справа — по суммам на концах линий;
+       на узком графике суммы уходят внутрь поля, чтобы не отнимать ширину */
+    var narrow = W < 480;
+    var yTicks = [];
+    for(var v = 0; v <= t.top + 1e-6; v += t.step) yTicks.push(v);
+    var ML = 14 + Math.max.apply(null, yTicks.map(function(v){ return textW(fmt(v), F_TICK); }));
+    var MR = narrow ? 8 : 22 + Math.max(
+      textW(fmt(t.fee * t.months) + ' ₽', F_END), textW(fmt(t.price) + ' ₽', F_END),
+      textW(fmt(fee * months) + ' ₽', F_END), textW(fmt(price) + ' ₽', F_END));
+    var MT = 12, MB = 30, PW = W - ML - MR, PH = H - MT - MB, BY = MT + PH;
+    function X(m){ return ML + m / months * PW; }
+    function Y(v){ return BY - v / s.top * PH; }
+    geo = {W: W, H: H, ML: ML, PW: PW, MT: MT, BY: BY, X: X, Y: Y};
+
+    var g = '<defs>'
+      + '<linearGradient id="econWash" x1="0" x2="1" y1="0" y2="0">'
+      +   '<stop offset="0" style="stop-color:var(--accent);stop-opacity:var(--wash-lo)"/><stop offset="1" style="stop-color:var(--accent);stop-opacity:var(--wash-hi)"/>'
+      + '</linearGradient>'
+      + '<clipPath id="econReveal"><rect x="0" y="0" height="' + H + '" width="' + r1(ML - 8 + (W - ML + 16) * easeInOut(reveal)) + '"/></clipPath>'
+      + '</defs>';
+
+    /* сетка и подписи оси ₽ */
+    yTicks.forEach(function(v){
+      var y = r1(Y(v));
+      if(y < MT - 1) return;
+      g += tag('line', {x1: r1(ML), x2: r1(ML + PW), y1: y, y2: y, 'class': v === 0 ? 'ch-base' : 'ch-grid'});
+      g += tag('text', {x: r1(ML - 10), y: r1(y + 3.5), 'text-anchor': 'end', 'class': 'ch-tick'}, fmt(v));
+    });
+
+    /* подписи оси времени: шаг делит горизонт без остатка, одна подпись на ~60 px ширины */
+    var maxTicks = Math.max(2, Math.min(7, Math.floor(PW / 60))), step = t.months;
+    var steps = [3, 6, 12, 18, 24, 30, 36, 42, 48, 54, 60];
+    for(var i = 0; i < steps.length; i++){
+      if(t.months % steps[i] === 0 && t.months / steps[i] <= maxTicks){ step = steps[i]; break; }
+    }
+    for(var m = 0; m <= t.months; m += step){
+      if(m > months + 0.01) break;
+      var last = m === t.months;
+      g += tag('text', {x: r1(X(m)), y: r1(BY + 20), 'text-anchor': m === 0 ? 'start' : (last ? 'end' : 'middle'), 'class': 'ch-tick'}, m + (last ? ' мес' : ''));
+    }
+
+    var d = '';
+    var yP = Y(price), yT = Y(total), xE = X(months);
+    var bmf = (fee > 0 && price > 0) ? price / fee : Infinity;
+    var xB = X(bmf), pays = bmf <= months;
+    var slope = (BY - yT) / PW;                 /* наклон линии подписки, px на px */
+
+    /* ——— вспомогательное: подпись не должна лежать на линии, на узле или на другой подписи ——— */
+    var taken = [];                             /* уже занятые прямоугольники */
+    function segHit(b, x1, y1, x2, y2){
+      var xa = Math.max(b.x, Math.min(x1, x2)), xb = Math.min(b.x + b.w, Math.max(x1, x2));
+      if(xa > xb) return false;
+      var m = (y2 - y1) / ((x2 - x1) || 1e-6);
+      var ya = y1 + m * (xa - x1), yb2 = y1 + m * (xb - x1);
+      return !(Math.min(ya, yb2) > b.y + b.h || Math.max(ya, yb2) < b.y);
+    }
+    function boxHit(a, b){ return !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y); }
+    function free(b, gutter){
+      if(b.x < ML - 2 || b.y < MT - 8 || b.y + b.h > BY - 2) return false;
+      if(b.x + b.w > ML + PW + (gutter ? MR - 10 : 2)) return false;
+      if(segHit(b, ML, BY, xE, yT)) return false;                        /* линия подписки */
+      if(price > 0 && segHit(b, ML, yP, xE, yP)) return false;           /* линия покупки */
+      if(pays && xB >= b.x - 6 && xB <= b.x + b.w + 6 && yP >= b.y - 6 && yP <= b.y + b.h + 6) return false;  /* узел */
+      for(var i = 0; i < taken.length; i++) if(boxHit(b, taken[i])) return false;
+      return true;
+    }
+
+    /* ——— суммы на концах линий ——— */
+    var ends = [{y: yT, v: total, cls: 'sub', sloped: true}];
+    if(price > 0) ends.push({y: yP, v: price, cls: 'own', sloped: false});
+    var hi = ends[0], lo = null;
+    if(ends.length === 2){ hi = ends[0].y <= ends[1].y ? ends[0] : ends[1]; lo = hi === ends[0] ? ends[1] : ends[0]; }
+    if(narrow){
+      /* внутри поля: сначала над своей линией, иначе под ней — с поправкой на наклон,
+         чтобы линия не перечёркивала цифры */
+      [hi, lo].forEach(function(p){
+        if(!p) return;
+        var w = textW(fmt(p.v) + ' ₽', F_END);
+        /* у конца линии, а если там тесно — левее по своей же линии, где зазор шире */
+        var spots = [];
+        [0, 0.2 * PW, 0.4 * PW].forEach(function(dx){
+          var ly = p.sloped ? p.y + slope * dx : p.y;          /* своя линия в этой точке */
+          var above = ly - 10, below = ly + 17 + (p.sloped ? slope * (w + 8) : 0);
+          spots.push([dx, p === hi ? above : below], [dx, p === hi ? below : above]);
+        });
+        for(var i = 0; i < spots.length; i++){
+          var dx = spots[i][0], base = spots[i][1];
+          var b = {x: xE - 9 - dx - w, y: base - 14, w: w + 6, h: 19};
+          if(free(b)){ p.dx = dx; p.ly = base; taken.push(b); break; }
+        }
+        if(p.ly == null){                        /* свободного места нет — прижимаем к своей линии сверху */
+          p.dx = 0;
+          p.ly = Math.min(Math.max(p.y - 10, MT + 11), BY - 2);
+          taken.push({x: xE - 9 - w, y: p.ly - 14, w: w + 6, h: 19});
+        }
+        p.lx = xE - 6 - p.dx; p.anchor = 'end';
+      });
+    } else {
+      /* на поле справа: близкие подписи разводим по вертикали */
+      ends.forEach(function(p){ p.lx = xE + 12; p.ly = p.y + 4.5; p.anchor = 'start'; });
+      if(lo){
+        if(lo.ly - hi.ly < 18){ var mid = (hi.y + lo.y) / 2 + 4.5; hi.ly = mid - 9; lo.ly = mid + 9; }
+        var dn = Math.max(0, lo.ly - (BY + 2)), up = Math.max(0, MT + 8 - hi.ly);
+        hi.ly += up - dn; lo.ly += up - dn;
+      }
+      ends.forEach(function(p){
+        taken.push({x: p.lx - 3, y: p.ly - 14, w: textW(fmt(p.v) + ' ₽', F_END) + 6, h: 19});
+      });
+    }
+
+    /* ——— экономия: клин между линиями после точки окупаемости ——— */
+    if(pays){
+      d += tag('polygon', {points: r1(xB) + ',' + r1(yP) + ' ' + r1(xE) + ',' + r1(yT) + ' ' + r1(xE) + ',' + r1(yP), 'class': 'ch-wash'});
+      var note = 'экономия ' + fmt(total - price) + ' ₽', nw = textW(note, F_NOTE), nx = xE - 12, ny = yP - 10;
+      var nb = {x: nx - nw - 3, y: ny - 14, w: nw + 6, h: 19};
+      /* подпись клина — только если целиком помещается между линиями */
+      if(!narrow && nb.x > xB + 16 && free(nb)){
+        d += tag('text', {x: r1(nx), y: r1(ny), 'text-anchor': 'end', 'class': 'ch-note'}, note);
+        taken.push(nb);
+      }
+    }
+
+    /* ——— линии: подписка растёт без остановки, покупка — один платёж и дальше ровно ——— */
+    d += tag('line', {x1: r1(ML), y1: r1(BY), x2: r1(xE), y2: r1(yT), 'class': 'ch-sub'});
+    if(price > 0) d += tag('path', {d: 'M' + r1(ML) + ' ' + r1(BY) + 'V' + r1(yP) + 'H' + r1(xE), 'class': 'ch-own'});
+
+    /* ——— плашка окупаемости: первое место, где она никому не мешает; иначе её нет ——— */
+    function pillAt(text, spots, cls){
+      var w = textW(text, F_NOTE) + 24, h = 24;
+      for(var i = 0; i < spots.length; i++){
+        var b = {x: spots[i][0] - (spots[i][2] === 'end' ? w : 0), y: spots[i][1], w: w, h: h};
+        if(free(b, !narrow)){
+          taken.push(b);
+          return '<g class="ch-pill' + (cls ? ' ' + cls : '') + '">'
+            + tag('rect', {x: r1(b.x), y: r1(b.y), width: r1(w), height: h, rx: 12})
+            + tag('text', {x: r1(b.x + w / 2), y: r1(b.y + 16), 'text-anchor': 'middle'}, text) + '</g>';
+        }
+      }
+      return '';                                 /* месяц окупаемости всё равно есть в цифрах слева */
+    }
+
+    if(pays){
+      var bx = r1(xB), by = r1(yP);
+      d += tag('line', {x1: bx, x2: bx, y1: r1(yP + 8), y2: r1(BY), 'class': 'ch-guide'});
+      d += tag('circle', {cx: bx, cy: r1(BY), r: 2.5, 'class': 'ch-dot--own'});
+      d += tag('circle', {cx: bx, cy: by, r: 5, 'class': 'be-halo'});
+      d += tag('circle', {cx: bx, cy: by, r: 5, 'class': 'ch-node'});
+      d += pillAt('окупается · ' + Math.ceil(bmf) + '-й мес', [
+        [xB - 12, yP - 12 - 24, 'end'],          /* над узлом слева — там обычно пусто */
+        [xB + 12, yP + 12, 'start'],             /* под узлом справа */
+        [xB + 12, yP - 12 - 24, 'start'],        /* над узлом справа */
+        [xB - 12, yP + 12, 'end'],               /* под узлом слева */
+        [ML + 6, MT - 6, 'start']                /* верхний левый угол поля */
+      ]);
+    } else if(bmf < Infinity){
+      /* окупаемость за пределами срока — приглушённая плашка у правого края */
+      var later = bmf <= LIFE_MONTHS ? 'окупится на ' + Math.ceil(bmf) + '-м мес →' : 'не окупится за 10 лет';
+      d += pillAt(later, [
+        [xE - 8, yP - 12 - 24, 'end'],           /* над линией покупки */
+        [xE - 8, yP + 12, 'end'],                /* под линией покупки */
+        [ML + 6, MT - 6, 'start']
+      ], 'ch-pill--later');
+    }
+
+    /* ——— точки и сами подписи концов ——— */
+    ends.forEach(function(p){
+      d += tag('circle', {cx: r1(xE), cy: r1(p.y), r: 4, 'class': 'ch-dot ch-dot--' + p.cls});
+      d += tag('text', {x: r1(p.lx), y: r1(p.ly), 'text-anchor': p.anchor, 'class': 'ch-end'}, fmt(p.v) + ' ₽');
+    });
+
+    baseG.innerHTML = g + '<g clip-path="url(#econReveal)">' + d + '</g>';
+    drawHover();
+    writeStats();
+  }
+
+  /* перекрестие и подсказка — отдельным слоем, чтобы не перерисовывать весь график */
+  function drawHover(){
+    if(hoverM == null || !geo || reveal < 1){ hoverG.innerHTML = ''; tip.hidden = true; return; }
+    var s = shown, m = Math.max(0, Math.min(Math.round(s.months), hoverM));
+    var spent = s.fee * m, x = r1(geo.X(m)), ys = geo.Y(spent), yo = geo.Y(s.price);
+    var h = tag('line', {x1: x, x2: x, y1: geo.MT, y2: r1(geo.BY), 'class': 'ch-cross'});
+    if(s.price > 0) h += tag('circle', {cx: x, cy: r1(yo), r: 4, 'class': 'ch-dot ch-dot--own'});
+    h += tag('circle', {cx: x, cy: r1(ys), r: 4, 'class': 'ch-dot ch-dot--sub'});
+    hoverG.innerHTML = h;
+
+    var diff = spent - s.price;
+    set('tipTitle', m === 0 ? 'день покупки' : m + '-й месяц');
+    set('tipSub', fmt(spent) + ' ₽');
+    set('tipOwn', fmt(s.price) + ' ₽');
+    set('tipDiffLabel', diff >= 0 ? 'экономия' : 'до окупаемости');
+    set('tipDiff', fmt(Math.abs(diff)) + ' ₽');
+    tip.hidden = false;
+    /* сбоку от перекрестия, где есть место; на узком графике — над точками или под ними */
+    var w = tip.offsetWidth, th = tip.offsetHeight, left, top;
+    if(x + 16 + w <= geo.W || x - 16 - w >= 0){
+      left = x + 16 + w <= geo.W ? x + 16 : x - 16 - w;
+      top = Math.max(0, Math.min((ys + yo) / 2 - th / 2, geo.H - th));
+    } else {
+      left = Math.max(0, Math.min(x - w / 2, geo.W - w));
+      top = Math.min(ys, yo) - th - 14;
+      if(top < 0) top = Math.min(Math.max(ys, yo) + 14, geo.H - th);
+    }
+    tip.style.transform = 'translate(' + Math.round(left) + 'px,' + Math.round(top) + 'px)';
+  }
+
+  /* ——— три цифры и месячная стоимость ——— */
+  function writeStats(){
+    var s = shown, t = target;
+    var years = t.months / 12, hz = years + ' ' + yearWord(years);
+    var total = s.fee * s.months;
+    var hasFee = t.fee > 0, both = hasFee && t.price > 0;
+    var bmT = both ? Math.ceil(t.price / t.fee) : Infinity, pays = bmT <= t.months;
+
+    set('stHorizon', hz);
+    set('stTotal', hasFee ? fmt(total) + ' ₽' : '—');
+    set('stTotalSub', hasFee ? fmt(s.fee) + ' ₽ × ' + Math.round(s.months) + ' мес' : 'укажи свой тариф');
+
+    /* месяц окупаемости от срока не зависит — срок решает только, успеет ли покупка окупиться */
+    if(!both){
+      set('stBe', '—');
+      set('stBeSub', hasFee ? 'подставь цену WEXUS' : 'нужны обе цифры');
+    } else if(bmT > LIFE_MONTHS){
+      set('stBe', 'позже 10 лет');
+      set('stBeSub', 'дольше среднего срока службы накопителя');
+    } else {
+      set('stBe', bmT + '-й месяц');
+      set('stBeSub', pays ? 'через ' + span(bmT) : 'позже выбранного срока');
+    }
+    var diff = total - s.price;
+    if(both && !pays){
+      set('stSaveLabel', 'Разница за ' + hz);
+      set('stSave', (diff < 0 ? '−' : '') + fmt(Math.abs(diff)) + ' ₽');
+      set('stSaveSub', 'на этом сроке подписка дешевле');
+    } else {
+      set('stSaveLabel', 'Экономия за ' + hz);
+      set('stSave', both ? (diff < 0 ? '−' : '') + fmt(Math.abs(diff)) + ' ₽' : '—');
+      set('stSaveSub', both ? 'остаётся у тебя' : '\u00a0');
+    }
+    board.classList.toggle('has-payback', pays);
+
+    var own = s.months > 0 ? s.price / s.months : 0, mx = Math.max(s.fee, own, 1);
+    set('pmSub', fmt(s.fee) + ' ₽');
+    set('pmOwn', fmt(own) + ' ₽');
+    $('pmSubBar').style.width = (s.fee / mx * 100).toFixed(1) + '%';
+    $('pmOwnBar').style.width = (own / mx * 100).toFixed(1) + '%';
+  }
+
+  /* итог одной фразой — для скринридера, без дребезга при наборе */
+  function summary(t){
+    if(t.fee <= 0) return 'Укажи, сколько стоит твой тариф сейчас, — страница пересчитает расходы за выбранный срок.';
+    var years = t.months / 12, total = t.fee * t.months;
+    var s = 'За ' + years + ' ' + yearWord(years) + ' подписка по ' + fmt(t.fee) + ' ₽ в месяц обойдётся в ' + fmt(total) + ' ₽. ';
+    if(t.price <= 0) return s + 'Подставь цену WEXUS, чтобы увидеть точку окупаемости.';
+    var bm = Math.ceil(t.price / t.fee), buy = 'Разовая покупка за ' + fmt(t.price) + ' ₽ ';
+    if(bm <= t.months) s += buy + 'окупается на ' + bm + '-м месяце, экономия за срок — ' + fmt(total - t.price) + ' ₽.';
+    else if(bm <= LIFE_MONTHS) s += buy + 'окупается на ' + bm + '-м месяце — это позже выбранного срока, на нём подписка дешевле на ' + fmt(t.price - total) + ' ₽.';
+    else s += buy + 'окупается позже 10 лет — дольше среднего срока службы накопителя.';
+    return s + ' В пересчёте на месяц это ' + fmt(t.price / t.months) + ' ₽ против ' + fmt(t.fee) + ' ₽.';
+  }
+  function announce(){
+    clearTimeout(announceTimer);
+    announceTimer = setTimeout(function(){ resultEl.textContent = summary(target); }, 700);
+  }
+
+  /* поле по ширине числа: единица стоит вплотную к цифрам */
+  function fit(el){ el.style.width = 'calc(' + (Math.max(1, el.value.length) + 0.4) + 'ch + var(--s3))'; }
+
+  /* новые числа: цифры и график догоняют их за полсекунды */
+  function update(){
+    target = read();
+    fit(feeEl); fit(priceEl);
+    announce();
+    if(reducedMotion.matches){ copy(target, shown); draw(); return; }
+    var from = copy(shown, {}), t0 = performance.now(), id = ++tween;
+    requestAnimationFrame(function frame(now){
+      if(id !== tween) return;
+      var p = Math.max(0, Math.min(1, (now - t0) / 480)), k = easeOut(p);
+      if(p < 1){
+        shown.fee = from.fee + (target.fee - from.fee) * k;
+        shown.price = from.price + (target.price - from.price) * k;
+        shown.months = from.months + (target.months - from.months) * k;
+        shown.top = from.top + (target.top - from.top) * k;
+      } else copy(target, shown);
+      draw();
+      if(p < 1) requestAnimationFrame(frame);
+    });
+  }
+
+  /* степперы: шаг из атрибута step, значение встаёт на сетку шага; удержание — автоповтор */
+  Array.prototype.forEach.call(wrap.querySelectorAll('.num__btn'), function(btn){
+    var el = $(btn.getAttribute('data-for')), dir = +btn.getAttribute('data-dir');
+    var delay = 0, repeat = 0;
+    function bump(){
+      var st = +el.step || 1, cur = +el.value || 0;
+      var next = dir > 0 ? Math.floor(cur / st) * st + st : Math.ceil(cur / st) * st - st;
+      next = Math.max(+el.min || 0, Math.min(+el.max || Infinity, next));
+      if(next === cur) return;
+      el.value = next;
+      update();
+    }
+    var last = -1e6, held = false;
+    function stop(){ clearTimeout(delay); clearInterval(repeat); }
+    function step(){ last = performance.now(); bump(); }
+    btn.addEventListener('pointerdown', function(e){
+      if(e.button !== 0) return;
+      stop();
+      held = false;
+      /* мышь и перо реагируют сразу, палец — только на отпускание: касание может оказаться прокруткой */
+      if(e.pointerType !== 'touch') step();
+      delay = setTimeout(function(){ held = true; repeat = setInterval(step, 70); }, 420);
+    });
+    btn.addEventListener('pointerup', function(e){
+      if(e.pointerType === 'touch' && !held) step();
+      stop();
+    });
+    ['pointerleave', 'pointercancel'].forEach(function(type){ btn.addEventListener(type, function(){ held = true; stop(); }); });
+    /* Enter и пробел приходят как click; свои же нажатия отсекаем по времени */
+    btn.addEventListener('click', function(){ if(performance.now() - last > 350) step(); });
+  });
+
+  /* ——— наведение, касание, клавиатура ——— */
+  function clampM(m){ return Math.max(0, Math.min(target.months, m)); }
+  function onPoint(e){
+    if(!geo) return;
+    var r = chart.getBoundingClientRect();
+    hoverM = clampM(Math.round((e.clientX - r.left - geo.ML) / geo.PW * shown.months));
+    drawHover();
+  }
+  chart.addEventListener('pointermove', onPoint);
+  chart.addEventListener('pointerdown', onPoint);
+  chart.addEventListener('pointerleave', function(e){
+    if(e.pointerType !== 'mouse') return;   /* на таче подсказка живёт до касания мимо графика */
+    hoverM = null;
+    drawHover();
+  });
+  document.addEventListener('pointerdown', function(e){
+    if(hoverM != null && !chart.contains(e.target)){ hoverM = null; drawHover(); }
+  });
+  chart.addEventListener('focus', function(){
+    if(hoverM != null) return;
+    hoverM = clampM(target.fee > 0 && target.price > 0 ? Math.ceil(target.price / target.fee) : target.months);
+    drawHover();
+  });
+  chart.addEventListener('blur', function(){ hoverM = null; drawHover(); });
+  chart.addEventListener('keydown', function(e){
+    var k = e.key, m = hoverM == null ? 0 : hoverM, st = e.shiftKey ? 12 : 1;
+    if(k === 'ArrowRight') m += st;
+    else if(k === 'ArrowLeft') m -= st;
+    else if(k === 'Home') m = 0;
+    else if(k === 'End') m = target.months;
+    else if(k === 'Escape'){ hoverM = null; drawHover(); e.preventDefault(); return; }
+    else return;
+    e.preventDefault();
+    hoverM = clampM(m);
+    drawHover();
+  });
+
+  /* ——— первый показ: цифры поднимаются, линии прочерчиваются слева направо ——— */
+  function playReveal(){
+    var t0 = performance.now();
+    requestAnimationFrame(function frame(now){
+      reveal = Math.max(0, Math.min(1, (now - t0) / 1100));
+      draw();
+      if(reveal < 1) requestAnimationFrame(frame);
+    });
+  }
+  if('IntersectionObserver' in window && !reducedMotion.matches){
+    reveal = 0;
+    wrap.classList.add('is-pending');
+    var io = new IntersectionObserver(function(entries){
+      if(!entries[0].isIntersecting) return;
+      io.disconnect();
+      wrap.classList.remove('is-pending');
+      wrap.classList.add('is-in');
+      playReveal();
+    }, {threshold: 0.12});
+    io.observe(board);
+  }
+
+  fit(feeEl); fit(priceEl);
+  draw();
+  resultEl.textContent = summary(target);
+  if(window.ResizeObserver) new ResizeObserver(function(){ draw(); }).observe(canvas);
+  else window.addEventListener('resize', draw);
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+  [feeEl, priceEl].forEach(function(el){ el.addEventListener('input', update); });
+  /* пока вкладка скрыта, кадры анимации не идут — при возвращении показываем актуальные числа */
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible'){ copy(target, shown); draw(); }
+  });
+  Array.prototype.forEach.call(wrap.querySelectorAll('input[name="term"]'), function(el){ el.addEventListener('change', update); });
+})();
+</script>
+
+<!-- Структурированные данные: то же, что видно на странице, без цен и обещаний -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Product",
+  "name": "WEXUS",
+  "description": "Портативное локальное хранилище данных: SSD, аккумулятор и Wi-Fi в одном корпусе. Разовая покупка без подписки, доступ с нескольких устройств по локальной сети или по собственной сети устройства без интернета.",
+  "category": "Портативное сетевое хранилище данных",
+  "brand": {
+    "@type": "Brand",
+    "name": "WEXUS"
+  },
+  "model": "WX-1TB rev 01"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Нужен ли интернет?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Нет. В автономном режиме устройство поднимает собственную сеть, и файлы открываются напрямую."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "А если устройство потеряется или сломается?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Данные пропадут вместе с ним. Облако держит копию у себя, WEXUS — нет, поэтому для важного нужна вторая копия."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Это уже можно купить?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Нет. Это проект программы «Стартап как диплом»: есть проработанный прототип rev 01, продаж нет, цена не определена."
+      }
+    }
+  ]
+}
+</script>
+
+</body>
+</html>
