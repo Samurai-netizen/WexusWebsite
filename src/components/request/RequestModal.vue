@@ -8,12 +8,17 @@
  * без него кнопка неактивна, текст согласия раскрывается прямо у формы
  * и содержит оператора, цель, перечень данных, действия, срок и порядок
  * отзыва. Согласие оформлено отдельным блоком, а не строчкой в оферте.
+ *
+ * Класс ym-hide-content на карточке: Вебвизор Метрики не записывает ничего
+ * внутри окна. Сам он прячет только поля, похожие на личные, а почта видна
+ * ещё и текстом — в «Спасибо, свяжемся по адресу …» и в запасном письме.
  */
 import { nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 
 import RequestForm from './RequestForm.vue'
 import RequestResult from './RequestResult.vue'
 import { useRequestModal } from '@/composables/useRequestModal'
+import { reachGoal } from '@/services/metrika'
 import type { RequestResult as SendResult } from '@/services/requestForm'
 
 /** сколько длится анимация закрытия, прежде чем окно убирается, мс */
@@ -105,6 +110,9 @@ function onDialogClose() {
 
 /* итог: «заявка принята» или запасной путь — письмо с готовым текстом */
 async function onResult(next: SendResult) {
+  // в Метрику — только выбранный из списка сценарий, не имя и не почта
+  if (next.ok) reachGoal('request_sent', { segment: next.data.segment || 'не указан' })
+  else reachGoal('request_failed')
   result.value = next
   view.value = 'done'
   /* окно закрыли, пока заявка была в пути: итог покажем при следующем открытии.
@@ -137,7 +145,7 @@ async function onRetry() {
   >
     <div
       ref="card"
-      class="modal__card theme-raised relative max-h-[inherit] overflow-y-auto rounded-ui border border-quartz/14 bg-ink px-s5 pt-s5 pb-s4 shadow-[0_30px_80px_rgba(0,0,0,0.5)] max-sm:rounded-b-none max-sm:px-s3 max-sm:pt-s4 max-sm:pb-s3"
+      class="modal__card theme-raised ym-hide-content relative max-h-[inherit] overflow-y-auto rounded-ui border border-quartz/14 bg-ink px-s5 pt-s5 pb-s4 shadow-[0_30px_80px_rgba(0,0,0,0.5)] max-sm:rounded-b-none max-sm:px-s3 max-sm:pt-s4 max-sm:pb-s3"
     >
       <span class="modal__wire" aria-hidden="true"></span>
       <button

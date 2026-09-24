@@ -7,6 +7,7 @@ import { computed, onBeforeUnmount, ref, useTemplateRef } from 'vue'
 
 import { COPY_FEEDBACK_MS, COPY_LABEL } from './request.data'
 import { TEAM_EMAIL } from '@/config'
+import { sendParamsOnce } from '@/services/metrika'
 import { buildLetter, buildMailtoHref, type RequestResult } from '@/services/requestForm'
 
 const props = defineProps<{
@@ -43,6 +44,7 @@ let copyTimer: ReturnType<typeof setTimeout> | undefined
 async function copyLetter() {
   const area = mailArea.value
   if (!area) return
+  sendParamsOnce({ request_fallback: { copy: 1 } })
   area.select()
   let copied = false
   try {
@@ -96,7 +98,13 @@ defineExpose({
     ></textarea>
     <div class="flex flex-wrap items-center gap-s4">
       <template v-if="!ok">
-        <a id="mailtoLink" class="btn" :href="buildMailtoHref(letter)">Открыть в почте</a>
+        <a
+          id="mailtoLink"
+          class="btn"
+          :href="buildMailtoHref(letter)"
+          @click="sendParamsOnce({ request_fallback: { mailto: 1 } })"
+          >Открыть в почте</a
+        >
         <button class="link-quiet" type="button" @click="copyLetter">
           {{ copyLabel }}
         </button>

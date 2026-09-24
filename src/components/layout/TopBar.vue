@@ -28,7 +28,7 @@ const { openRequestModal } = useRequestModal()
     <button
       class="btn btn-sm max-lg:min-h-11 shorter:min-h-[34px]"
       type="button"
-      @click="openRequestModal($event)"
+      @click="openRequestModal($event, 'topbar')"
     >
       Оставить заявку
     </button>

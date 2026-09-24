@@ -10,12 +10,15 @@ import { ref } from 'vue'
 import ExpandPanel from '@/components/ui/ExpandPanel.vue'
 import { FAQ } from '@/content/faq'
 import { faqAnswerId, faqQuestionId, nextOpenIndex } from './faqAccordion'
+import { sendParamsOnce } from '@/services/metrika'
 
 /** Номер раскрытого вопроса; null — все свёрнуты. */
 const openIndex = ref<number | null>(null)
 
 function toggle(index: number) {
   openIndex.value = nextOpenIndex(openIndex.value, index)
+  // Метрика: какие вопросы открывают — подсказка, чего не хватает в тексте страницы
+  if (openIndex.value === index) sendParamsOnce({ faq: { [FAQ[index]!.question]: 1 } })
 }
 </script>
 

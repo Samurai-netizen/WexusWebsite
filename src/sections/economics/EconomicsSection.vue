@@ -18,8 +18,10 @@ import OwnershipChart from './OwnershipChart.vue'
 import OwnershipStats from './OwnershipStats.vue'
 import { clamp, REVEAL_MS, statsView } from './economics'
 import { useOwnershipModel } from './useOwnershipModel'
+import { trackAction } from '@/services/metrika'
 
 const { feeInput, priceInput, termYears, target, shown, announcement } = useOwnershipModel()
+watch([feeInput, priceInput, termYears], () => trackAction('calc_used'))
 const stats = computed(() => statsView(shown.value, target.value))
 
 /* ——— первый показ: цифры поднимаются, линии прочерчиваются слева направо ———

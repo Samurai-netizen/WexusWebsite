@@ -69,7 +69,7 @@ const { openRequestModal } = useRequestModal()
         </p>
 
         <div class="flex flex-wrap items-center gap-s4 max-lg:mb-s4 max-sm:gap-s3">
-          <button class="btn" type="button" @click="openRequestModal($event)">
+          <button class="btn" type="button" @click="openRequestModal($event, 'hero')">
             Оставить заявку на прототип
           </button>
           <a class="link-quiet" href="#problem">Почему облако это не твоя собственность</a>

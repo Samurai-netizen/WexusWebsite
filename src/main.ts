@@ -13,6 +13,12 @@ import '@fontsource/space-grotesk/600.css'
 
 import './styles/main.css'
 import App from './App.vue'
+import { METRIKA_ID } from './config'
+import { initMetrika } from './services/metrika'
 
-// vite-ssg требует экспортировать createApp вместо createApp(App).mount('#app')
-export const createApp = ViteSSG(App)
+// vite-ssg требует экспортировать createApp вместо createApp(App).mount('#app').
+// Метрика — только в браузере и только в собранном сайте: на npm run dev
+// визиты разработчиков не попадают в статистику.
+export const createApp = ViteSSG(App, ({ isClient }) => {
+  if (isClient && import.meta.env.PROD) initMetrika(METRIKA_ID)
+})

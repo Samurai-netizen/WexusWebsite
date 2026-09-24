@@ -55,10 +55,14 @@ const { openRequestModal } = useRequestModal()
           Заявка из формы уходит письмом на почту команды через сервис отправки форм FormSubmit
           (formsubmit.co).
         </p>
+        <p class="note text-[12.5px]">
+          Статистику посещений собирает Яндекс Метрика (cookie). Данные из формы заявки в неё не
+          попадают.
+        </p>
         <button
           class="link-quiet mt-[4px] text-[13px]"
           type="button"
-          @click="openRequestModal($event)"
+          @click="openRequestModal($event, 'footer')"
         >
           Оставить заявку
         </button>

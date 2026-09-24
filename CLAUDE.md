@@ -63,7 +63,7 @@ legacy/wexus_landing-7.html  исходный лендинг одним файл
 
 | Задача | Решение |
 |---|---|
-| Кнопка «Оставить заявку» | `@click="openRequestModal($event)"` из `useRequestModal()` |
+| Кнопка «Оставить заявку» | `@click="openRequestModal($event, 'hero')"` из `useRequestModal()`; второй аргумент — источник для Метрики (`RequestSource`) |
 | Экран ленты с фоном и темой | `<ScreenSection id="…">`; его `<section>` — через `ref` и `.root` (не `$el`) |
 | Класс темы по тону | `themeClassOf(tone)` из `src/content/sections.ts` |
 | Тёмная карточка поверх любого экрана (окно, подсказка) | класс `.theme-raised` + свой фон (`bg-graphite/96`) |
@@ -72,6 +72,7 @@ legacy/wexus_landing-7.html  исходный лендинг одним файл
 | Элемент в зоне видимости | `useInView(target, { threshold, once })` |
 | Анимация при первом появлении | `useRevealOnce(targetRef, { threshold })` → `:class="revealClass"`; анимируемое прятать под `.is-pending`, запускать под `.is-in`. Уже учитывает пререндер, reduced motion и «элемент виден сразу при загрузке» |
 | Знак WEXUS | `<BrandMark class="…" label="…">` (без label — декоративный) |
+| Цель или параметр Метрики | `reachGoal` / `sendParamsOnce` / `trackAction` из `src/services/metrika.ts` |
 | Почта и состав команды | `TEAM_EMAIL`, `TEAM_MEMBERS` из `src/config.ts` (подставляются в согласие и подвал) |
 
 ## Правила кода
@@ -179,6 +180,16 @@ legacy/wexus_landing-7.html  исходный лендинг одним файл
 `src/components/request/__tests__/requestModal.spec.ts`.
 Тексты согласия на обработку данных (152-ФЗ) меняются только по просьбе владельца
 (замена почты или состава команды в `config.ts` — не правка текста).
+
+## Яндекс Метрика
+
+Счётчик (`METRIKA_ID` в `config.ts`) запускается в `main.ts` — только в браузере и только в собранном
+сайте. Вся аналитика — через `src/services/metrika.ts`; без счётчика функции ничего не делают.
+- Цели (`MetrikaGoal`) — только про заявку; новая цель заводится и в интерфейсе Метрики (README).
+  Остальное — параметры визитов (`sendParamsOnce`, `trackAction`): в интерфейсе их настраивать не нужно.
+- В Метрику не уходят персональные данные: ни имя, ни почта, ни текст из формы.
+  Окно заявки скрыто от Вебвизора классом `ym-hide-content` — не снимать.
+- Экраны учитываются в `App.vue` с задержкой `SCREEN_DWELL_MS`: пролёт по ссылке рейки не считается.
 
 ## Проверка изменений
 

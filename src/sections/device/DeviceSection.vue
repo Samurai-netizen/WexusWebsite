@@ -5,14 +5,16 @@
  * Характеристики — моноширинным: здесь это настоящие данные.
  * Выбор объёма меняет гравировку на чертеже и строку модели в таблице.
  */
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import ScreenSection from '@/components/layout/ScreenSection.vue'
 import CapacityPicker from './CapacityPicker.vue'
 import DeviceBlueprint from './DeviceBlueprint.vue'
 import { LEGEND_ITEMS, SPEC_MODEL_LABEL, SPEC_ROWS, type SpecRow } from './device.data'
 import { useCapacityChoice } from './useCapacityChoice'
+import { trackAction } from '@/services/metrika'
 
 const { selectedIndex, shown, isSwapping, select } = useCapacityChoice()
+watch(selectedIndex, () => trackAction('capacity_select'))
 
 /** Первая строка таблицы — модель: она зависит от выбранного объёма. */
 const specRows = computed<SpecRow[]>(() => [

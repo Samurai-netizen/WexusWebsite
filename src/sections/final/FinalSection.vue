@@ -44,7 +44,7 @@ const { openRequestModal } = useRequestModal()
         <!-- mb-s2 (на узком экране mb-s4): в исходнике под кнопкой стоял пустой абзац
              с отступом s2 — его место сохраняется, иначе колонка сместится по высоте -->
         <div class="mt-s3 mb-s2 flex flex-wrap items-center gap-s4 max-lg:mb-s4 max-sm:gap-s3">
-          <button class="btn" type="button" @click="openRequestModal($event)">
+          <button class="btn" type="button" @click="openRequestModal($event, 'final')">
             Оставить заявку на прототип
           </button>
         </div>

@@ -4,15 +4,17 @@
  * Главный смысловой блок. Схема с переключателем: один и тот же
  * набор узлов, меняется только источник сети.
  */
-import { ref, useTemplateRef } from 'vue'
+import { ref, useTemplateRef, watch } from 'vue'
 import ScreenSection from '@/components/layout/ScreenSection.vue'
 import { useInView } from '@/composables/useInView'
 import ModeSwitch from './ModeSwitch.vue'
 import DataFlowScheme from './DataFlowScheme.vue'
 import { DEFAULT_MODE, MODES, STEPS, panelId, tabId, type Mode } from './modes.data'
 import { LIVE_THRESHOLD } from './dataFlow'
+import { trackAction } from '@/services/metrika'
 
 const mode = ref<Mode>(DEFAULT_MODE)
+watch(mode, () => trackAction('mode_switch'))
 
 /* схема оживает, когда экран виден хотя бы на 35 %, и засыпает вне экрана */
 const section = useTemplateRef<InstanceType<typeof ScreenSection>>('section')

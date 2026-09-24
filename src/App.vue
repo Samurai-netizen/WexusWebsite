@@ -4,7 +4,7 @@
  * Порядок экранов задаёт SECTIONS в src/content/sections.ts, здесь — только
  * какой компонент рисует каждый экран.
  */
-import { onBeforeUnmount, onMounted, useTemplateRef, type Component } from 'vue'
+import { onBeforeUnmount, onMounted, useTemplateRef, watch, type Component } from 'vue'
 import { useHead } from '@unhead/vue'
 
 import TopBar from '@/components/layout/TopBar.vue'
@@ -18,9 +18,10 @@ import CompareSection from '@/sections/compare/CompareSection.vue'
 import EconomicsSection from '@/sections/economics/EconomicsSection.vue'
 import FinalSection from '@/sections/final/FinalSection.vue'
 
-import { startSectionTracking } from '@/composables/useSectionTracking'
+import { startSectionTracking, useSectionState } from '@/composables/useSectionTracking'
 import { SECTIONS, type SectionId } from '@/content/sections'
 import { faqJsonLd, productJsonLd } from '@/content/structuredData'
+import { createScreenReporter, sendParamsOnce } from '@/services/metrika'
 
 // Структурированные данные для поисковиков попадают в пререндеренный HTML
 useHead({
@@ -46,10 +47,24 @@ const SCREENS: Record<SectionId, Component> = {
 const deck = useTemplateRef<HTMLElement>('deck')
 let stopTracking: (() => void) | undefined
 
+/* Метрика: до какого экрана дошёл посетитель. Своя разметка, потому что на широком
+   экране прокручивается лента, а не окно, — глубину прокрутки Метрика там не видит.
+   Первый экран не шлём: с него начинается каждый визит. В отчёте «Параметры визитов»
+   экраны подписаны номером и названием из рейки: «3. Как работает». */
+const screens = createScreenReporter((id) => {
+  const index = SECTIONS.findIndex((s) => s.id === id)
+  if (index > 0) sendParamsOnce({ screen: { [`${index + 1}. ${SECTIONS[index]!.label}`]: 1 } })
+})
+const { activeId } = useSectionState()
+watch(activeId, (id) => screens.enter(id))
+
 onMounted(() => {
   if (deck.value) stopTracking = startSectionTracking(deck.value)
 })
-onBeforeUnmount(() => stopTracking?.())
+onBeforeUnmount(() => {
+  stopTracking?.()
+  screens.stop()
+})
 </script>
 
 <template>
