@@ -9,6 +9,8 @@ import type {} from 'vite-ssg/node'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // На GitHub Pages сайт публикуется по пути /<repo>/, а не в корне домена
+  base: process.env.GITHUB_PAGES ? '/WexusWebsite/' : '/',
   plugins: [vue(), tailwindcss(), vueDevTools()],
   resolve: {
     alias: {
